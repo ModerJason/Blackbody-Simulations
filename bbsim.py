@@ -18,7 +18,7 @@ mu_0 = constants.mu_0
 
 # HFSS project setup
 project_name = "InfParallelPlate"
-design_name = "csv"
+design_name = "bbsim"
 
 hfss = Hfss(project=project_name, design=design_name, non_graphical=False)
 oDesktop = hfss.odesktop
@@ -271,13 +271,13 @@ def run_analysis(num_cores, max_delta_E, max_passes, plane_wave_face, Ei, output
 
         # Extract initial waveguide and far field data (final for discrete sweep, to be adjusted for adaptive sweep)
         waveguide_data_0 = extract_waveguide_data(frequency, Ei, plane_wave_face, i_theta_lower, i_theta_upper,
-            i_phi_lower, i_phi_upper, i_theta_step, i_phi_step, output_file_location, csv=True, E_phi=0, refine=False)
+            i_phi_lower, i_phi_upper, i_theta_step, i_phi_step, output_file_location, 0, csv=True, refine=False)
         far_field_data_0 = extract_far_field_data(frequency, i_theta_lower, i_theta_upper, i_phi_lower, i_phi_upper,
-            i_theta_step, i_phi_step, rad_theta_step, rad_phi_step, output_file_location, csv=True, E_phi=0, refine=False)
+            i_theta_step, i_phi_step, rad_theta_step, rad_phi_step, output_file_location, 0, csv=True, refine=False)
         waveguide_data_1 = extract_waveguide_data(frequency, Ei, plane_wave_face, i_theta_lower, i_theta_upper,
-            i_phi_lower, i_phi_upper, i_theta_step, i_phi_step, output_file_location, csv=True, E_phi=1, refine=False)
+            i_phi_lower, i_phi_upper, i_theta_step, i_phi_step, output_file_location, 1, csv=True, refine=False)
         far_field_data_1 = extract_far_field_data(frequency, i_theta_lower, i_theta_upper, i_phi_lower, i_phi_upper,
-            i_theta_step, i_phi_step, rad_theta_step, rad_phi_step, output_file_location, csv=True, E_phi=1, refine=False)
+            i_theta_step, i_phi_step, rad_theta_step, rad_phi_step, output_file_location, 1, csv=True, refine=False)
     else:
         print("Reading in waveguide data and far-field data from existing csv files")
         waveguide_data_from_csv = pd.read_csv(waveguide_data_csv)
@@ -302,7 +302,7 @@ def run_analysis(num_cores, max_delta_E, max_passes, plane_wave_face, Ei, output
             pass
 
         Ephi_values = [E_phi] if E_phi is not None else [0, 1]
-        # Sweep over both polarizations
+        # Sweep over the polarizations
         for Ephi in Ephi_values:
             # Set the Ephi variable to the desired polarization
             hfss["Ephi"] = Ephi
@@ -413,7 +413,7 @@ def run_refined_plane_wave(plane_wave_face, frequency, num_cores, max_delta_E, m
                     plane_theta_lower, plane_theta_upper,
                     plane_phi_lower, plane_phi_upper,
                     plane_theta_step, plane_phi_step,
-                    output_file_location, csv=False, E_phi=Ephi, refine=True
+                    output_file_location, Ephi, csv=False, refine=True
                 )
             )
 
@@ -422,7 +422,7 @@ def run_refined_plane_wave(plane_wave_face, frequency, num_cores, max_delta_E, m
                     frequency, plane_theta_lower, plane_theta_upper,
                     plane_phi_lower, plane_phi_upper,
                     plane_theta_step, plane_phi_step, rad_theta_step, rad_phi_step,
-                    output_file_location, csv=False, E_phi=Ephi, refine=True
+                    output_file_location, Ephi, csv=False, refine=True
                 )
             )
             # Delete the analysis setup after refining each region
@@ -637,7 +637,7 @@ def get_incoming_power(Ei, plane_wave_face):
 # polarization and (2) electric field magnitude at output. Added timing for debugging purposes. Export time depends
 # on both resolution and size of the waveguide.
 def extract_waveguide_data(frequency, Ei, plane_wave_face, i_theta_lower, i_theta_upper, i_phi_lower, i_phi_upper,
-                           i_theta_step, i_phi_step, output_file_location, csv=True, E_phi=None, refine=False):
+                           i_theta_step, i_phi_step, output_file_location, E_phi, csv=True, refine=False):
 
     freq_str = f"{frequency}GHz"
     setup_name = get_setup_name(frequency) + ("_refine : LastAdaptive" if refine else " : LastAdaptive")
@@ -647,9 +647,7 @@ def extract_waveguide_data(frequency, Ei, plane_wave_face, i_theta_lower, i_thet
         i_theta_lower, i_theta_upper, i_phi_lower, i_phi_upper, i_theta_step, i_phi_step)
     i_phi_values = np.linspace(i_phi_lower, i_phi_upper, i_phi_num)
     i_theta_values = np.linspace(i_theta_lower, i_theta_upper, i_theta_num)
-
-    Ephi_values = [E_phi] if E_phi is not None else [0, 1]
-    total = len(i_phi_values) * len(i_theta_values) * len(Ephi_values)
+    total = len(i_phi_values) * len(i_theta_values)
 
     power_data = {}
     all_data = []
@@ -663,20 +661,19 @@ def extract_waveguide_data(frequency, Ei, plane_wave_face, i_theta_lower, i_thet
     t1 = time.perf_counter()
     oModuleFields.CalcStack("clear")
     oModuleFields.CopyNamedExprToStack("outgoing_power")
-    for Ephi in Ephi_values:
-        for i_phi in i_phi_values:
-            for i_theta in i_theta_values:
-                i_phi_str = f"{i_phi}deg"
-                i_theta_str = f"{i_theta}deg"
-                t_power = time.perf_counter()
-                oModuleFields.ClcEval(setup_name,
-                    ["Ephi:=", Ephi, "Freq:=", freq_str, "IWavePhi:=", i_phi_str, "IWaveTheta:=", i_theta_str], "Fields")
-                result = oModuleFields.GetTopEntryValue(setup_name,
-                    ["Ephi:=", Ephi, "Freq:=", freq_str, "IWavePhi:=", i_phi_str, "IWaveTheta:=", i_theta_str])
-                oModuleFields.CalcStack("pop")
-                power_data[(Ephi, i_phi, i_theta)] = float(result[0])
-                count += 1
-                print(f"[w1] [{count}/{total}] φ={i_phi}deg, θ={i_theta}deg, Ephi={Ephi}, {time.perf_counter() - t_power:.3f}s")
+    for i_phi in i_phi_values:
+        for i_theta in i_theta_values:
+            i_phi_str = f"{i_phi}deg"
+            i_theta_str = f"{i_theta}deg"
+            t_power = time.perf_counter()
+            oModuleFields.ClcEval(setup_name,
+                ["Ephi:=", E_phi, "Freq:=", freq_str, "IWavePhi:=", i_phi_str, "IWaveTheta:=", i_theta_str], "Fields")
+            result = oModuleFields.GetTopEntryValue(setup_name,
+                ["Ephi:=", E_phi, "Freq:=", freq_str, "IWavePhi:=", i_phi_str, "IWaveTheta:=", i_theta_str])
+            oModuleFields.CalcStack("pop")
+            power_data[(E_phi, i_phi, i_theta)] = float(result[0])
+            count += 1
+            print(f"[w1] [{count}/{total}] φ={i_phi}deg, θ={i_theta}deg, Ephi={E_phi}, {time.perf_counter() - t_power:.3f}s")
 
     print(f"First pass time: {(time.perf_counter() - t1):.3f}s")
 
@@ -689,31 +686,30 @@ def extract_waveguide_data(frequency, Ei, plane_wave_face, i_theta_lower, i_thet
     oModuleFields.EnterSurf("outgoing")
     oModuleFields.CalcOp("Value")
 
-    for Ephi in Ephi_values:
-        for i_phi in i_phi_values:
-            for i_theta in i_theta_values:
-                i_phi_str = f"{i_phi}deg"
-                i_theta_str = f"{i_theta}deg"
+    for i_phi in i_phi_values:
+        for i_theta in i_theta_values:
+            i_phi_str = f"{i_phi}deg"
+            i_theta_str = f"{i_theta}deg"
 
-                t_export = time.perf_counter()
-                oModuleFields.CalculatorWrite(exit_field_path,
-                    ["Solution:=", setup_name],
-                    ["Ephi:=", Ephi, "Freq:=", freq_str, "IWavePhi:=", i_phi_str, "IWaveTheta:=", i_theta_str])
-                print(f"Exported field in {time.perf_counter() - t_export:.3f}s")
+            t_export = time.perf_counter()
+            oModuleFields.CalculatorWrite(exit_field_path,
+                ["Solution:=", setup_name],
+                ["Ephi:=", E_phi, "Freq:=", freq_str, "IWavePhi:=", i_phi_str, "IWaveTheta:=", i_theta_str])
+            print(f"Exported field in {time.perf_counter() - t_export:.3f}s")
 
-                t_read = time.perf_counter()
-                df = read_hfss_field(exit_field_path)
-                print(f"Read field in {time.perf_counter() - t_read:.3f}s")
+            t_read = time.perf_counter()
+            df = read_hfss_field(exit_field_path)
+            print(f"Read field in {time.perf_counter() - t_read:.3f}s")
 
-                df["Freq"] = freq_str
-                df["Ephi"] = Ephi
-                df["IWavePhi"] = i_phi
-                df["IWaveTheta"] = i_theta
-                df["OutgoingPower"] = power_data[(Ephi, i_phi, i_theta)]
-                all_data.append(df)
+            df["Freq"] = freq_str
+            df["Ephi"] = E_phi
+            df["IWavePhi"] = i_phi
+            df["IWaveTheta"] = i_theta
+            df["OutgoingPower"] = power_data[(E_phi, i_phi, i_theta)]
+            all_data.append(df)
 
-                count += 1
-                print(f"[w2] [{count}/{total}] φ={i_phi}deg, θ={i_theta}deg, Ephi={Ephi}, {time.perf_counter() - t_export:.3f}s")
+            count += 1
+            print(f"[w2] [{count}/{total}] φ={i_phi}deg, θ={i_theta}deg, Ephi={E_phi}, {time.perf_counter() - t_export:.3f}s")
 
     print(f"Second pass time: {(time.perf_counter() - t2):.3f}s")
 
@@ -725,11 +721,12 @@ def extract_waveguide_data(frequency, Ei, plane_wave_face, i_theta_lower, i_thet
     waveguide_df = waveguide_df[[*priority_cols, *[col for col in waveguide_df.columns if col not in priority_cols]]]
 
     if csv:
-        output_filename = f"waveguide_{project_name}_{design_name}_{frequency}GHz"
-        if E_phi is not None:
-            output_filename += f"_Ephi={E_phi}"
-        output_filename += ".csv"
-        waveguide_df.to_csv(os.path.join(output_file_location, output_filename), index=False)
+        folder_name = f"{project_name}_{design_name}_{frequency}GHz_Ephi={E_phi}"
+        folder_path = os.path.join(output_file_location, folder_name)
+        os.makedirs(folder_path, exist_ok=True)
+
+        waveguide_filename = "waveguide.csv"
+        waveguide_df.to_csv(os.path.join(folder_path, waveguide_filename), index=False)
 
     print(f"[{freq_str}] Total time: {(time.perf_counter() - start_time) / 60:.3f} min")
     return waveguide_df
@@ -738,7 +735,7 @@ def extract_waveguide_data(frequency, Ei, plane_wave_face, i_theta_lower, i_thet
 # and has unit of V, not V/m, which is not very important because we care only about ratios.
 # Added timing for debugging purposes. Export time depends on both resolution and size of the waveguide
 def extract_far_field_data(frequency, i_theta_lower, i_theta_upper, i_phi_lower, i_phi_upper,
-                           i_theta_step, i_phi_step, rad_theta_step, rad_phi_step, output_file_location, csv=True, E_phi=None, refine=False):
+                           i_theta_step, i_phi_step, rad_theta_step, rad_phi_step, output_file_location, E_phi, csv=True, refine=False):
 
     freq_str = f"{frequency}GHz"
     setup_name = get_setup_name(frequency) + ("_refine : LastAdaptive" if refine else " : LastAdaptive")
@@ -750,8 +747,7 @@ def extract_far_field_data(frequency, i_theta_lower, i_theta_upper, i_phi_lower,
     )
     i_phi_values = np.linspace(i_phi_lower, i_phi_upper, i_phi_num)
     i_theta_values = np.linspace(i_theta_lower, i_theta_upper, i_theta_num)
-    Ephi_values = [E_phi] if E_phi is not None else [0, 1]
-    total = len(i_phi_values) * len(i_theta_values) * len(Ephi_values)
+    total = len(i_phi_values) * len(i_theta_values)
     all_data = []
     count = 0
     start_time = time.perf_counter()
@@ -832,12 +828,11 @@ def extract_far_field_data(frequency, i_theta_lower, i_theta_upper, i_phi_lower,
     # Loop through all input combinations and evaluate the far field
     for i_phi in i_phi_values:
         for i_theta in i_theta_values:
-            for Ephi in Ephi_values:
-                t1 = time.perf_counter()
-                df = evaluate_fields_and_export(Ephi, i_phi, i_theta)
-                all_data.append(df)
-                count += 1
-                print(f"[f1] [{count}/{total}] φ={i_phi}deg, θ={i_theta}deg, Ephi={Ephi}, {time.perf_counter() - t1:.3f}s")
+            t1 = time.perf_counter()
+            df = evaluate_fields_and_export(E_phi, i_phi, i_theta)
+            all_data.append(df)
+            count += 1
+            print(f"[f1] [{count}/{total}] φ={i_phi}deg, θ={i_theta}deg, Ephi={E_phi}, {time.perf_counter() - t1:.3f}s")
 
     far_field_df = pd.concat(all_data, ignore_index=True)
 
@@ -847,11 +842,12 @@ def extract_far_field_data(frequency, i_theta_lower, i_theta_upper, i_phi_lower,
     ]]
 
     if csv:
-        output_filename = f"far_field_{project_name}_{design_name}_{frequency}GHz"
-        if E_phi is not None:
-            output_filename += f"_Ephi={E_phi}"
-        output_filename += ".csv"
-        far_field_df.to_csv(os.path.join(output_file_location, output_filename), index=False)
+        folder_name = f"{project_name}_{design_name}_{frequency}GHz_Ephi={E_phi}"
+        folder_path = os.path.join(output_file_location, folder_name)
+        os.makedirs(folder_path, exist_ok=True)
+
+        far_field_filename = "far_field.csv"
+        far_field_df.to_csv(os.path.join(folder_path, far_field_filename), index=False)
 
     print(f"[{freq_str}] Done in {(time.perf_counter() - start_time ) /60:.3f} min")
     return far_field_df
@@ -992,12 +988,12 @@ def clear_simulation():
 
 def main():
     # The folder to output all output files
-    output_file_location = f"E:/Jason_W/Documents/Projects/Pycharm/HFSSSimData"
+    output_file_location = f"E:/Jason_W/Documents/Projects/Blackbody-Simulations/HFSSSimData"
 
     # Whether to import waveguide and far_field_data from existing CSV (default is false)
-    import_from_existing_csv = True
-    waveguide_data_csv = f"E:/Jason_W/Documents/Projects/Pycharm/HFSSSimData/waveguide_InfParallelPlate_speed29_500GHz_Ephi=1.csv"
-    far_field_data_csv = f"E:/Jason_W/Documents/Projects/Pycharm/HFSSSimData/far_field_InfParallelPlate_speed29_500GHz_Ephi=1.csv"
+    import_from_existing_csv = False
+    waveguide_data_csv = os.path.join(output_file_location, "InfParallelPlate_bbsim_500GHz_Ephi=1/waveguide.csv")
+    far_field_data_csv = os.path.join(output_file_location, "InfParallelPlate_bbsim_500GHz_Ephi=1/far_field.csv")
 
     # Design and analysis variables (E in V/m)
     Ei = 1
@@ -1078,11 +1074,11 @@ def main():
 
             previous_frequency = frequency
     else:
-        # We use regex to capture frequency and E_phi from existing csv filename, e.g. “…_500GHz_Ephi=0.csv”
-        basename = os.path.basename(waveguide_data_csv)
-        m = re.search(r"_(\d+)GHz_Ephi=(\d+)\.csv$", basename)
+        # We use regex to find the Ephi and frequency from the file path
+        parent_folder = os.path.basename(os.path.dirname(waveguide_data_csv))
+        m = re.search(r"_(\d+)GHz_Ephi=(\d+)$", parent_folder)
         if not m:
-            raise ValueError(f"Cannot parse frequency/Ephi from '{basename}'")
+            raise ValueError(f"Cannot parse frequency/Ephi from '{parent_folder}'")
 
         frequency = int(m.group(1))
         E_phi = int(m.group(2))
