@@ -18,7 +18,7 @@ mu_0 = constants.mu_0
 
 # HFSS project setup
 project_name = "InfParallelPlate"
-design_name = "bbsim"
+design_name = "bbsim2"
 
 hfss = Hfss(project=project_name, design=design_name, non_graphical=False)
 oDesktop = hfss.odesktop
@@ -1033,7 +1033,7 @@ def main():
     # The general guideline of sampling is 10 points across the narrowest feature, but we take more than 50 points to be safe
     # Here, the narrowest feature is 180 degrees, and to be safe we can sample with 360/72=5 degree coarseness.
     fineness = 10
-    minimum_coarseness = 0
+    minimum_coarseness = 1
     maximum_coarseness = 5
 
     # Collect radiation parameters into one variable for cleanness
@@ -1045,8 +1045,8 @@ def main():
     max_difference = 0.02
 
     # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
-    i_theta_step = 90
-    i_phi_step = 90
+    i_theta_step = 2
+    i_phi_step = 2
 
     # Simulation begins here
     clear_simulation()
@@ -1087,7 +1087,8 @@ def main():
         setup_radiation(rad_params, frequency)
         run_analysis(num_cores, max_delta_E, max_passes, plane_wave_face, Ei, output_file_location, i_theta_lower,
                      i_theta_upper, i_phi_lower, i_phi_upper, frequency, i_theta_step, i_phi_step, rad_params,
-                     adaptive, max_difference, True, E_phi, waveguide_data_csv, far_field_data_csv)
+                     adaptive, max_difference, True, E_phi, waveguide_data_csv,
+                     far_field_data_csv)
 
     hfss.release_desktop(close_projects=False, close_desktop=False)
 
@@ -1103,7 +1104,5 @@ def main():
     # For some reason, CPU usage for waveguide data export is greater than CPU usage for far field export.
     # Even calculating outgoing power takes some time, as does writing field at exit to file
 
-    # Tasks
-    # (1) Figure out better method than CSV
 if __name__ == "__main__":
     main()
