@@ -18,7 +18,7 @@ mu_0 = constants.mu_0
 
 # HFSS project setup
 project_name = "InfParallelPlate"
-design_name = "bbsim3"
+design_name = "bbsim4"
 
 hfss = Hfss(project=project_name, design=design_name, non_graphical=False)
 oDesktop = hfss.odesktop
@@ -240,13 +240,15 @@ def create_setup(frequency, max_delta_E, max_passes, previous_frequency):
 
 # Run analysis, including adaptive analysis if appropriate.
 def run_analysis(num_cores, max_delta_E, max_passes, plane_wave_face, Ei, output_file_location, i_theta_lower, i_theta_upper, i_phi_lower, i_phi_upper,
-                 frequency, i_theta_step, i_phi_step, rad_params, adaptive=True, max_difference = 0.02, import_from_existing_csv = False, E_phi = None,
+                 frequency, i_theta_step, i_phi_step, rad_params, sweep = "adaptive", max_difference = 0.02, import_from_existing_csv = False, E_phi = None,
                  waveguide_data_csv = None, far_field_data_csv = None):
 
-    if not adaptive:
+    if sweep == "discrete":
         print(f"Discrete sweep has begun for frequency {frequency}GHz")
-    else:
+    elif sweep == "adaptive":
         print(f"Adaptive sweep has begun for frequency {frequency}GHz")
+    elif sweep == "zoom":
+        print(f"Zoom sweep has begun for frequency {frequency}GHz")
 
     # Declare waveguide_data and far_field_data variables
     waveguide_data_0 = waveguide_data_1 = None
@@ -283,7 +285,7 @@ def run_analysis(num_cores, max_delta_E, max_passes, plane_wave_face, Ei, output
         waveguide_data_from_csv = pd.read_csv(waveguide_data_csv)
         far_field_data_from_csv = pd.read_csv(far_field_data_csv)
 
-    if adaptive:
+    if sweep == "adaptive" or sweep == "zoom":
         # Disable analysis and parametric setup before adaptive sweep begins, and insert new refinement setup.
         # We do not delete the setups because we will use them for better meshing for future frequencies
         parametric_setup_name = get_parametric_setup_name(frequency)
@@ -316,29 +318,32 @@ def run_analysis(num_cores, max_delta_E, max_passes, plane_wave_face, Ei, output
                 waveguide_data = waveguide_data_from_csv
                 far_field_data = far_field_data_from_csv
 
-            # Repeat until converge: (1) find a new region to refine (2) create a plane wave to refine this region
-            # and analyze
-            incoming_power = get_incoming_power(Ei, plane_wave_face)
-            converged = False
-            while not converged:
-                result = find_regions_to_refine(incoming_power, waveguide_data, max_difference)
-                if result is not False:
-                    refine_regions = result
-                    waveguide_data, far_field_data = run_refined_plane_wave(plane_wave_face, frequency, num_cores, max_delta_E, max_passes, Ei, output_file_location,
-                    Ephi, waveguide_data, far_field_data, rad_params, refine_regions, csv=False)
-                else:
-                    print(f"No region to refine with fractional difference greater than {max_difference:.4f}")
-                    converged = True
+            if sweep == "adaptive":
+                # Repeat until converge: (1) find a new region to refine (2) create a plane wave to refine this region
+                # and analyze
+                incoming_power = get_incoming_power(Ei, plane_wave_face)
+                converged = False
+                while not converged:
+                    result = find_regions_to_refine(incoming_power, waveguide_data, max_difference)
+                    if result is not False:
+                        refine_regions = result
+                        waveguide_data, far_field_data = run_refined_plane_wave(plane_wave_face, frequency, num_cores, max_delta_E, max_passes, Ei, output_file_location,
+                        Ephi, waveguide_data, far_field_data, rad_params, refine_regions, csv=False)
+                    else:
+                        print(f"No region to refine with fractional difference greater than {max_difference:.4f}")
+                        converged = True
 
-            # Output two csv files at the end of the sweep for each polarization for each frequency
-            print(f"Exporting waveguide and far field data to csv for frequency {frequency}GHz, Ephi={Ephi}")
-            waveguide_output_filename = f"refined_waveguide_{project_name}_{design_name}_{frequency}GHz_Ephi={Ephi}.csv"
-            full_path = os.path.join(output_file_location, waveguide_output_filename)
-            waveguide_data.to_csv(full_path, index=False)
-            far_field_output_filename = f"refined_far_field{project_name}_{design_name}_{frequency}GHz_Ephi={Ephi}.csv"
-            full_path = os.path.join(output_file_location, far_field_output_filename)
-            far_field_data.to_csv(full_path, index=False)
-            print(f"Waveguide and far field data to csv for frequency {frequency}GHz, Ephi={Ephi} exported")
+                # Output two csv files at the end of the sweep for each polarization for each frequency
+                print(f"Exporting waveguide and far field data to csv for frequency {frequency}GHz, Ephi={Ephi}")
+                waveguide_output_filename = f"refined_waveguide_{project_name}_{design_name}_{frequency}GHz_Ephi={Ephi}.csv"
+                full_path = os.path.join(output_file_location, waveguide_output_filename)
+                waveguide_data.to_csv(full_path, index=False)
+                far_field_output_filename = f"refined_far_field{project_name}_{design_name}_{frequency}GHz_Ephi={Ephi}.csv"
+                full_path = os.path.join(output_file_location, far_field_output_filename)
+                far_field_data.to_csv(full_path, index=False)
+                print(f"Waveguide and far field data to csv for frequency {frequency}GHz, Ephi={Ephi} exported")
+            if sweep == "zoom":
+                print("Temporary filler")
 
 # Runs refined plane wave sweeps for each region in the list of regions refine_regions. The function
 # also updates the dataframes.
@@ -926,7 +931,7 @@ def read_hfss_far_field(filepath, rad_theta_step, rad_phi_step):
     return df
 
 # Delete excitations/far field radiation sphere and previous refinement setup following completion of each frequency
-def clear_analysis(frequency, adaptive):
+def clear_analysis(frequency, sweep):
     sphere_name = get_radiation_sphere_name(frequency)
 
     oModuleBoundary.DeleteAllExcitations()
@@ -936,7 +941,7 @@ def clear_analysis(frequency, adaptive):
 
     # Disable the analysis/parametric setups if we are in a discrete sweep. If we are doing adaptive sweeps, the setups will
     # already be disabled
-    if not adaptive:
+    if sweep == "discrete":
         oModuleAnalysis.EditSetup(setup_name,
                                   [
                                       f"NAME:{setup_name}",
@@ -997,7 +1002,7 @@ def main():
 
     # Design and analysis variables (E in V/m)
     Ei = 1
-    max_delta_E = 0.02
+    max_delta_E = 0.05
     max_passes = 10
     num_cores = 4
 
@@ -1041,12 +1046,12 @@ def main():
 
     # Adaptive or discrete sweep. For adaptive sweep, max difference is maximum fractional difference allowed between
     # any two points in the sweep, relative to the total maximum value of the outgoing power.
-    adaptive = True
+    sweep = "adaptive"
     max_difference = 0.02
 
     # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
-    i_theta_step = 5
-    i_phi_step = 5
+    i_theta_step = 2
+    i_phi_step = 2
 
     # Simulation begins here
     clear_simulation()
@@ -1065,12 +1070,12 @@ def main():
             create_setup(frequency, max_delta_E, max_passes, previous_frequency)
             setup_radiation(rad_params, frequency)
             run_analysis(num_cores, max_delta_E, max_passes, plane_wave_face, Ei, output_file_location, i_theta_lower, i_theta_upper, i_phi_lower,
-                         i_phi_upper, frequency, i_theta_step, i_phi_step, rad_params, adaptive, max_difference)
+                         i_phi_upper, frequency, i_theta_step, i_phi_step, rad_params, sweep, max_difference)
 
             # Delete plane wave after each frequency, except for the last frequency. For discrete sweeps,
             # this allows the user to inspect fields.
             if i < len(frequencies) - 1:
-                clear_analysis(frequency, adaptive)
+                clear_analysis(frequency, sweep)
 
             previous_frequency = frequency
     else:
@@ -1087,7 +1092,7 @@ def main():
         setup_radiation(rad_params, frequency)
         run_analysis(num_cores, max_delta_E, max_passes, plane_wave_face, Ei, output_file_location, i_theta_lower,
                      i_theta_upper, i_phi_lower, i_phi_upper, frequency, i_theta_step, i_phi_step, rad_params,
-                     adaptive, max_difference, True, E_phi, waveguide_data_csv,
+                     sweep, max_difference, True, E_phi, waveguide_data_csv,
                      far_field_data_csv)
 
     hfss.release_desktop(close_projects=False, close_desktop=False)
