@@ -1038,7 +1038,7 @@ def main():
     # The general guideline of sampling is 10 points across the narrowest feature, but we take more than 50 points to be safe
     # Here, the narrowest feature is 180 degrees, and to be safe we can sample with 360/72=5 degree coarseness.
     fineness = 10
-    minimum_coarseness = 1
+    minimum_coarseness = 0
     maximum_coarseness = 5
 
     # Collect radiation parameters into one variable for cleanness
@@ -1047,7 +1047,7 @@ def main():
     # Adaptive or discrete sweep. For adaptive sweep, max difference is maximum fractional difference allowed between
     # any two points in the sweep, relative to the total maximum value of the outgoing power.
     sweep = "adaptive"
-    max_difference = 0.02
+    max_difference = 0.05
 
     # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
     i_theta_step = 2
@@ -1101,13 +1101,29 @@ def main():
     # (1) We need to be careful about vectorial addition for polarizations, not as simple as I wrote
     # For waveguide, calculate a new coupling ratio by decomposing fields into two polarizations.
     # Calculate field at exit by doing the same thing
-    # Calculate far fields by adding vectorially in complex vector notation.
+    # Calculate far fields by adding vectorially in complex vector notation
     # (2) Note that although it should not be the case, in some cases numerically the power exiting the waveguide can be
     # larger than the power entering, for example for TEM transmission. If run long enough, the HFSS simulation
     # converge to a power ratio of 1
-    # (3) Writing far field data to file (ExportFieldsToFile), CSV exports take a long time. Depends on CPU usage
-    # For some reason, CPU usage for waveguide data export is greater than CPU usage for far field export.
-    # Even calculating outgoing power takes some time, as does writing field at exit to file
+    # (3) To be more precise, the waveguide data extracted is (1) the outgoing power at the exit face and (2) the
+    # electric field at the exit (X | Y | Z | MagE). The far field data extracted is the far field, written to a data file
+    # with rEphi_real | rEphi_imag | rEtheta_real | rEtheta_imag
+
+    # Steps to use the data. We seek to simulate the photon's trajectory through the waveguide and its probability distribution
+    # over output angles. We decouple this into 3 phases
+    # (1) Probability that the photon reaches the output face of the waveguide: given by |S21|, or the ratio of the
+    # output power to the input power. In the case where numerically the output power is greater than the input power,
+    # the ratio can be set to 1
+    # (2) Where the photon is emitted on the output face: given by the electric field at the output face, and the
+    # probability of emission from each individual location on the output face is proportional to the square of the
+    # electric field amplitude (MagE) at those discretized points.
+    # (3) The outgoing k vector for the photon: given by the far field radiation pattern, and the probability of emission
+    # into each outgoing k vector is proportional to power in the far field, which is proportional to |MagE|^2. |MagE|^2
+    # can be calculated as |MagE|^2 = (rEphi_real)^2 + (rEphi_imag)^2 + (rEtheta_real)^2 + (rEtheta_imag)^2
+    # (4) Importantly, the photon will generally be in a linear combination of both polarizations, say a|0>+b|1>. When the photon is
+    # entering the waveguide, (i) the probability of making it to the output face is a^2*|S21 for |0>| + b^2*|S21 for |1>|
+    # (ii) The probability of emitting from any particular point is again weighted by a^2 and b^2, i.e.
+    # a^2*Prob(x,y,z) for |0> + b^2*Prob(x,y,z) for |1> (iii) same thing for the far field radiation pattern
 
 if __name__ == "__main__":
     main()
