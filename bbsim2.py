@@ -18,7 +18,7 @@ mu_0 = constants.mu_0
 
 # HFSS project setup
 project_name = "InfParallelPlate"
-design_name = "bbsim4"
+design_name = "bbsim5"
 
 hfss = Hfss(project=project_name, design=design_name, non_graphical=False)
 oDesktop = hfss.odesktop
@@ -39,6 +39,8 @@ oModuleParametric = oDesign.GetModule("Optimetrics")
 oModuleBoundary = oDesign.GetModule("BoundarySetup")
 oModuleFields = oDesign.GetModule("FieldsReporter")
 oModuleRad = oDesign.GetModule("RadField")
+
+#%%
 
 # Initialize the design variables for the project
 def initialize_variables(Ei):
@@ -991,6 +993,7 @@ def clear_simulation():
     for sphere_name in oModuleRad.GetSetupNames("Infinite Sphere"):
         oModuleRad.DeleteSetup([sphere_name])
 
+#%%
 def main():
     # The folder to output all output files
     output_file_location = f"E:/Jason_W/Documents/Projects/Blackbody-Simulations/HFSSSimData"
@@ -1050,8 +1053,8 @@ def main():
     max_difference = 0.05
 
     # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
-    i_theta_step = 2
-    i_phi_step = 2
+    i_theta_step = 90
+    i_phi_step = 90
 
     # Simulation begins here
     clear_simulation()
@@ -1098,16 +1101,10 @@ def main():
     hfss.release_desktop(close_projects=False, close_desktop=False)
 
     # Notes:
-    # (1) We need to be careful about vectorial addition for polarizations, not as simple as I wrote
-    # For waveguide, calculate a new coupling ratio by decomposing fields into two polarizations.
-    # Calculate field at exit by doing the same thing
-    # Calculate far fields by adding vectorially in complex vector notation
-    # (2) Note that although it should not be the case, in some cases numerically the power exiting the waveguide can be
-    # larger than the power entering, for example for TEM transmission. If run long enough, the HFSS simulation
-    # converge to a power ratio of 1
-    # (3) To be more precise, the waveguide data extracted is (1) the outgoing power at the exit face and (2) the
-    # electric field at the exit (X | Y | Z | MagE). The far field data extracted is the far field, written to a data file
-    # with rEphi_real | rEphi_imag | rEtheta_real | rEtheta_imag
+    # (1) The code expects an existing setup with all analysis and parametric setups deleted,
+    # or a fresh layout. NOTE: due to an error, it is advisable to recreate (duplicate) the project each time ANSYS is launched,
+    # and delete all analysis sweeps associated
+    # (2) The code expects many parameters to be filled in regarding the layout; see main()
 
     # Steps to use the data. We seek to simulate the photon's trajectory through the waveguide and its probability distribution
     # over output angles. We decouple this into 3 phases
