@@ -1,3 +1,25 @@
+# Notes:
+# (1) The code expects an existing setup with all analysis and parametric setups deleted,
+# or a fresh layout. NOTE: due to an error, it is advisable to recreate (duplicate) the project each time ANSYS is launched,
+# and delete all analysis sweeps associated
+# (2) The code expects many parameters to be filled in regarding the layout; see main()
+
+# Steps to use the data. We seek to simulate the photon's trajectory through the waveguide and its probability distribution
+# over output angles. We decouple this into 3 phases
+# (1) Probability that the photon reaches the output face of the waveguide: given by |S21|, or the ratio of the
+# output power to the input power. In the case where numerically the output power is greater than the input power,
+# the ratio can be set to 1
+# (2) Where the photon is emitted on the output face: given by the electric field at the output face, and the
+# probability of emission from each individual location on the output face is proportional to the square of the
+# electric field amplitude (MagE) at those discretized points.
+# (3) The outgoing k vector for the photon: given by the far field radiation pattern, and the probability of emission
+# into each outgoing k vector is proportional to power in the far field, which is proportional to |MagE|^2. |MagE|^2
+# can be calculated as |MagE|^2 = (rEphi_real)^2 + (rEphi_imag)^2 + (rEtheta_real)^2 + (rEtheta_imag)^2
+# (4) Importantly, the photon will generally be in a linear combination of both polarizations, say a|0>+b|1>. When the photon is
+# entering the waveguide, (i) the probability of making it to the output face is a^2*|S21 for |0>| + b^2*|S21 for |1>|
+# (ii) The probability of emitting from any particular point is again weighted by a^2 and b^2, i.e.
+# a^2*Prob(x,y,z) for |0> + b^2*Prob(x,y,z) for |1> (iii) same thing for the far field radiation pattern
+
 import sys
 import threading
 
@@ -1100,28 +1122,6 @@ def main():
                      far_field_data_csv)
 
     hfss.release_desktop(close_projects=False, close_desktop=False)
-
-    # Notes:
-    # (1) The code expects an existing setup with all analysis and parametric setups deleted,
-    # or a fresh layout. NOTE: due to an error, it is advisable to recreate (duplicate) the project each time ANSYS is launched,
-    # and delete all analysis sweeps associated
-    # (2) The code expects many parameters to be filled in regarding the layout; see main()
-
-    # Steps to use the data. We seek to simulate the photon's trajectory through the waveguide and its probability distribution
-    # over output angles. We decouple this into 3 phases
-    # (1) Probability that the photon reaches the output face of the waveguide: given by |S21|, or the ratio of the
-    # output power to the input power. In the case where numerically the output power is greater than the input power,
-    # the ratio can be set to 1
-    # (2) Where the photon is emitted on the output face: given by the electric field at the output face, and the
-    # probability of emission from each individual location on the output face is proportional to the square of the
-    # electric field amplitude (MagE) at those discretized points.
-    # (3) The outgoing k vector for the photon: given by the far field radiation pattern, and the probability of emission
-    # into each outgoing k vector is proportional to power in the far field, which is proportional to |MagE|^2. |MagE|^2
-    # can be calculated as |MagE|^2 = (rEphi_real)^2 + (rEphi_imag)^2 + (rEtheta_real)^2 + (rEtheta_imag)^2
-    # (4) Importantly, the photon will generally be in a linear combination of both polarizations, say a|0>+b|1>. When the photon is
-    # entering the waveguide, (i) the probability of making it to the output face is a^2*|S21 for |0>| + b^2*|S21 for |1>|
-    # (ii) The probability of emitting from any particular point is again weighted by a^2 and b^2, i.e.
-    # a^2*Prob(x,y,z) for |0> + b^2*Prob(x,y,z) for |1> (iii) same thing for the far field radiation pattern
 
 if __name__ == "__main__":
     main()
