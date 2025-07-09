@@ -16,9 +16,70 @@ from typing import Optional
 c = constants.c
 mu_0 = constants.mu_0
 
-# HFSS project setup
+# HFSS project setup (project name and design name)
 project_name = "InfParallelPlate"
-design_name = "bbsim5"
+design_name = "bbsim6"
+
+# The folder to output all output files
+repo_root = os.path.dirname(os.path.abspath(__file__))
+output_file_location = os.path.join(repo_root, "HFSSSimData")
+os.makedirs(output_file_location, exist_ok=True)
+
+# Whether to import waveguide and far_field_data from existing CSV (default is false)
+import_from_existing_csv = False
+waveguide_data_csv = os.path.join(output_file_location, "InfParallelPlate_bbsim_500GHz_Ephi=1/waveguide.csv")
+far_field_data_csv = os.path.join(output_file_location, "InfParallelPlate_bbsim_500GHz_Ephi=1/far_field.csv")
+
+# Design and analysis variables
+Ei = 1 # strength of incident electric field [V/m]
+max_delta_E = 0.02 # HFSS analysis sweep parameter
+max_passes = 10 # HFSS analysis sweep parameter
+num_cores = 4
+
+# Check face id's of the plane wave ingoing face and outgoing face by clicking select object/by name
+ingoing_face_id = 8
+outgoing_face_id = 7
+
+# Frequencies in GHz
+freq_lower, freq_upper, freq_step = 500, 550, 100
+
+# The following 4 variables refer to sweeps over incident plane wave. These angles are with respect to the global
+# coordinate system. Symmetry can be used to make these sweeps less wide
+i_theta_lower, i_theta_upper, i_phi_lower, i_phi_upper = 90, 180, 0, 90
+
+# Define x and y directions of outgoing coordinate systems (vectors relative to global coordinate system)
+# x direction points outward from face. The z direction is automatic from the right-hand rule.
+# It is helpful to redefine a coordinate system so that the theta and phi sweep correspond to sweeps corresponding
+# to the two length scales. The 4 angular variables refer to sweeps over the far field radiation, with respect to the user-defined CS
+outgoing_face_cs_x = [0, 0, 1]
+outgoing_face_cs_y = [0, 1, 0]
+rad_theta_lower, rad_theta_upper, rad_phi_lower, rad_phi_upper = 0, 180, -90, 90
+
+# a is the length scale of the dimension coinciding with the sweep over phi
+# b is the length scale of the dimension coinciding with the sweep over theta
+a = 10 # [um]
+b = 0.05 # [um]
+
+# Analysis variables. 1/fineness is the fraction of lambda/a swept over each radiation step in theta and phi
+# Maximum coarseness is the maximum coarseness of the angular sweeps, in degrees.
+# For small widths (a or b small), phi or theta will have only 1 main lobe with angular width lambda/a very high.
+# The general guideline of sampling is 10 points across the narrowest feature, but we take more than 50 points to be safe
+# Here, the narrowest feature is 180 degrees, and to be safe we can sample with 360/72=5 degree coarseness.
+fineness = 10
+minimum_coarseness = 0 # degrees
+maximum_coarseness = 5 # degrees
+
+# Collect radiation parameters into one variable for cleanness
+rad_params = rad_theta_lower, rad_theta_upper, rad_phi_lower, rad_phi_upper, a, b, fineness, maximum_coarseness, minimum_coarseness
+
+# Adaptive or discrete sweep. For adaptive sweep, max difference is maximum fractional difference allowed between
+# any two points in the sweep, relative to the total maximum value of the outgoing power.
+sweep = "adaptive"
+max_difference = 0.05
+
+# Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
+i_theta_step = 90
+i_phi_step = 90
 
 hfss = Hfss(project=project_name, design=design_name, non_graphical=False)
 oDesktop = hfss.odesktop
@@ -995,66 +1056,6 @@ def clear_simulation():
 
 #%%
 def main():
-    # The folder to output all output files
-    output_file_location = f"E:/Jason_W/Documents/Projects/Blackbody-Simulations/HFSSSimData"
-
-    # Whether to import waveguide and far_field_data from existing CSV (default is false)
-    import_from_existing_csv = False
-    waveguide_data_csv = os.path.join(output_file_location, "InfParallelPlate_bbsim_500GHz_Ephi=1/waveguide.csv")
-    far_field_data_csv = os.path.join(output_file_location, "InfParallelPlate_bbsim_500GHz_Ephi=1/far_field.csv")
-
-    # Design and analysis variables (E in V/m)
-    Ei = 1
-    max_delta_E = 0.05
-    max_passes = 10
-    num_cores = 4
-
-    # Check face id's of the plane wave ingoing face and outgoing face by
-    # Select object/by name
-    ingoing_face_id = 8
-    outgoing_face_id = 7
-
-    # Frequencies in GHz
-    freq_lower, freq_upper, freq_step = 500, 550, 100
-
-    # The following 4 variables refer to sweeps over incident plane wave. These angles are with respect to the global
-    # coordinate system. Symmetry can be used to make these sweeps less wide
-    i_theta_lower, i_theta_upper, i_phi_lower, i_phi_upper = 90, 180, 0, 90
-
-    # Define x and y directions of outgoing coordinate systems (vectors relative to global coordinate system)
-    # x direction points outward from face. The z direction is automatic from the right-hand rule.
-    # It is helpful to redefine a coordinate system so that the theta and phi sweep correspond to sweeps corresponding
-    # to the two length scales. The 4 angular variables refer to sweeps over the far field radiation, with respect to the user-defined CS
-    # defined above
-    outgoing_face_cs_x = [0, 0, 1]
-    outgoing_face_cs_y = [0, 1, 0]
-    rad_theta_lower, rad_theta_upper, rad_phi_lower, rad_phi_upper = 0, 180, -90, 90
-
-    # a is the length scale of the dimension coinciding with the sweep over phi
-    # b is the length scale of the dimension coinciding with the sweep over theta
-    a = 10
-    b = 0.05
-
-    # Analysis variables. 1/fineness is the fraction of lambda/a swept over each radiation step in theta and phi
-    # Maximum coarseness is the maximum coarseness of the angular sweeps, in degrees.
-    # For small widths (a or b small), phi or theta will have only 1 main lobe with angular width lambda/a very high.
-    # The general guideline of sampling is 10 points across the narrowest feature, but we take more than 50 points to be safe
-    # Here, the narrowest feature is 180 degrees, and to be safe we can sample with 360/72=5 degree coarseness.
-    fineness = 10
-    minimum_coarseness = 0
-    maximum_coarseness = 5
-
-    # Collect radiation parameters into one variable for cleanness
-    rad_params = rad_theta_lower, rad_theta_upper, rad_phi_lower, rad_phi_upper, a, b, fineness, maximum_coarseness, minimum_coarseness
-
-    # Adaptive or discrete sweep. For adaptive sweep, max difference is maximum fractional difference allowed between
-    # any two points in the sweep, relative to the total maximum value of the outgoing power.
-    sweep = "adaptive"
-    max_difference = 0.05
-
-    # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
-    i_theta_step = 90
-    i_phi_step = 90
 
     # Simulation begins here
     clear_simulation()
