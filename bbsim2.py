@@ -55,7 +55,7 @@ mu_0 = constants.mu_0
 
 # HFSS project setup (project name and design name)
 project_name = "InfParallelPlate"
-design_name = "bbsim10"
+design_name = "bbsim11"
 
 # The folder to output all output files
 repo_root = os.path.dirname(os.path.abspath(__file__))
@@ -601,7 +601,9 @@ def find_regions_to_refine(incoming_power, waveguide_data, max_difference):
             for jj in range(j + 1, power_grid.shape[1]):
                 neighbor_power = power_grid[i, jj]
                 if not np.isnan(neighbor_power):
-                    frac_diff = abs(current_power - neighbor_power) / max_power
+                    frac_diff = 0.0 if abs(current_power - neighbor_power) / max_power <= 1e-6 else abs(current_power - neighbor_power) / max(abs(current_power), abs(neighbor_power))
+
+                    #frac_diff = abs(current_power - neighbor_power) / max_power
                     if frac_diff > max_difference:
                         phi1, phi2 = phi_vals[j], phi_vals[jj]
                         theta1 = theta_vals[i]
@@ -631,7 +633,9 @@ def find_regions_to_refine(incoming_power, waveguide_data, max_difference):
             for ii in range(i + 1, power_grid.shape[0]):
                 neighbor_power = power_grid[ii, j]
                 if not np.isnan(neighbor_power):
-                    frac_diff = abs(current_power - neighbor_power) / max_power
+                    frac_diff = 0.0 if abs(current_power - neighbor_power) / max_power <= 1e-6 else abs(current_power - neighbor_power) / max(abs(current_power), abs(neighbor_power))
+
+                    #frac_diff = abs(current_power - neighbor_power) / max_power
                     if frac_diff > max_difference:
                         theta1, theta2 = theta_vals[i], theta_vals[ii]
                         phi1 = phi_vals[j]
