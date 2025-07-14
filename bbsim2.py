@@ -1,9 +1,17 @@
+# -*- coding: utf-8 -*-
+"""
+Created on 03/20/2025
+
+@author: Jason Wang
+"""
+
 # Notes:
 # (1) The code expects an existing setup with all analysis and parametric setups deleted,
 # or a fresh layout. NOTE: due to an error, it is advisable to recreate (duplicate) the project each time ANSYS is launched,
 # and delete all analysis sweeps associated
-# (2) The code expects many parameters to be filled in regarding the layout; see main()
+# (2) The code expects many parameters to be filled in regarding the layout
 
+# Usage:
 # Steps to use the data. We seek to simulate the photon's trajectory through the waveguide and its probability distribution
 # over output angles. We decouple this into 3 phases
 # (1) Probability that the photon reaches the output face of the waveguide: given by |S21|, or the ratio of the
@@ -19,6 +27,8 @@
 # entering the waveguide, (i) the probability of making it to the output face is a^2*|S21 for |0>| + b^2*|S21 for |1>|
 # (ii) The probability of emitting from any particular point is again weighted by a^2 and b^2, i.e.
 # a^2*Prob(x,y,z) for |0> + b^2*Prob(x,y,z) for |1> (iii) same thing for the far field radiation pattern
+
+# Packages: pyaedt, scipy, pandas, numpy
 
 import sys
 import threading
@@ -40,7 +50,7 @@ mu_0 = constants.mu_0
 
 # HFSS project setup (project name and design name)
 project_name = "InfParallelPlate"
-design_name = "bbsim6"
+design_name = "bbsim7"
 
 # The folder to output all output files
 repo_root = os.path.dirname(os.path.abspath(__file__))
@@ -100,8 +110,8 @@ sweep = "adaptive"
 max_difference = 0.05
 
 # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
-i_theta_step = 90
-i_phi_step = 90
+i_theta_step = 2
+i_phi_step = 2
 
 hfss = Hfss(project=project_name, design=design_name, non_graphical=False)
 oDesktop = hfss.odesktop
