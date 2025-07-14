@@ -10,6 +10,8 @@ Created on 03/20/2025
 # or a fresh layout. NOTE: due to an error, it is advisable to recreate (duplicate) the project each time ANSYS is launched,
 # and delete all analysis sweeps associated
 # (2) The code expects many parameters to be filled in regarding the layout
+# (3) If is desired, it is possible to Keyboard Interrupt in the middle of a simulation and save to csv. Then,
+# it is possible to begin a new simulation with this existing data. 
 
 # Usage:
 # Steps to use the data. We seek to simulate the photon's trajectory through the waveguide and its probability distribution
@@ -50,7 +52,7 @@ mu_0 = constants.mu_0
 
 # HFSS project setup (project name and design name)
 project_name = "InfParallelPlate"
-design_name = "bbsim7"
+design_name = "bbsim10"
 
 # The folder to output all output files
 repo_root = os.path.dirname(os.path.abspath(__file__))
@@ -110,8 +112,8 @@ sweep = "adaptive"
 max_difference = 0.05
 
 # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
-i_theta_step = 2
-i_phi_step = 2
+i_theta_step = 90
+i_phi_step = 90
 
 hfss = Hfss(project=project_name, design=design_name, non_graphical=False)
 oDesktop = hfss.odesktop
@@ -430,12 +432,17 @@ def run_analysis(num_cores, max_delta_E, max_passes, plane_wave_face, Ei, output
 
                 # Output two csv files at the end of the sweep for each polarization for each frequency
                 print(f"Exporting waveguide and far field data to csv for frequency {frequency}GHz, Ephi={Ephi}")
-                waveguide_output_filename = f"refined_waveguide_{project_name}_{design_name}_{frequency}GHz_Ephi={Ephi}.csv"
-                full_path = os.path.join(output_file_location, waveguide_output_filename)
+                folder_name = f"{project_name}_{design_name}_{frequency}GHz_Ephi={E_phi}"
+                folder_path = os.path.join(output_file_location, folder_name)
+
+                waveguide_output_filename = "refined_waveguide.csv"
+                full_path = os.path.join(folder_path, waveguide_output_filename)
                 waveguide_data.to_csv(full_path, index=False)
-                far_field_output_filename = f"refined_far_field{project_name}_{design_name}_{frequency}GHz_Ephi={Ephi}.csv"
-                full_path = os.path.join(output_file_location, far_field_output_filename)
+                
+                far_field_output_filename = "refined_far_field.csv"
+                full_path = os.path.join(folder_path, far_field_output_filename)
                 far_field_data.to_csv(full_path, index=False)
+                
                 print(f"Waveguide and far field data to csv for frequency {frequency}GHz, Ephi={Ephi} exported")
             if sweep == "zoom":
                 print("Temporary filler")
@@ -462,10 +469,13 @@ def run_refined_plane_wave(plane_wave_face, frequency, num_cores, max_delta_E, m
         combined = pd.concat([filtered_existing, new_df], ignore_index=True)
 
         if merge_csv:
-            output_filename = f"refine_{name}_{project_name}_{design_name}_{frequency}GHz_Ephi={Ephi}.csv"
-            full_path = os.path.join(output_file_location, output_filename)
+            print("Updating CSV file following this set of refining")
+            folder_name = f"{project_name}_{design_name}_{frequency}GHz_Ephi={Ephi}"
+            folder_path = os.path.join(output_file_location, folder_name)
+            output_filename = f"refined_{name}.csv"
+            full_path = os.path.join(folder_path, output_filename)
             combined.to_csv(full_path, index=False)
-
+            
         elapsed = time.perf_counter() - t0
         print(f"[{name}] Merge took {elapsed:.3f}s")
         return combined
