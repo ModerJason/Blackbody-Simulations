@@ -57,7 +57,7 @@ mu_0 = constants.mu_0
 
 # HFSS project setup (project name and design name)
 project_name = "InfParallelPlate"
-design_name = "bbsim12"
+design_name = "bbsim15"
 
 # The folder to output all output files
 repo_root = os.path.dirname(os.path.abspath(__file__))
@@ -66,8 +66,8 @@ os.makedirs(output_file_location, exist_ok=True)
 
 # Whether to import waveguide and far_field_data from existing CSV (default is false)
 import_from_existing_csv = False
-waveguide_data_csv = os.path.join(output_file_location, "InfParallelPlate_bbsim_500GHz_Ephi=1/waveguide.csv")
-far_field_data_csv = os.path.join(output_file_location, "InfParallelPlate_bbsim_500GHz_Ephi=1/far_field.csv")
+waveguide_data_csv = os.path.join(output_file_location, "InfParallelPlate_bbsim13_500GHz_Ephi=0/waveguide.csv")
+far_field_data_csv = os.path.join(output_file_location, "InfParallelPlate_bbsim13_500GHz_Ephi=0/far_field.csv")
 
 # Design and analysis variables
 Ei = 1 # strength of incident electric field [V/m]
@@ -114,11 +114,11 @@ rad_params = rad_theta_lower, rad_theta_upper, rad_phi_lower, rad_phi_upper, a, 
 # Adaptive or discrete sweep. For adaptive sweep, max difference is maximum fractional difference allowed between
 # any two points in the sweep, relative to the total maximum value of the outgoing power.
 sweep = "adaptive"
-max_difference = 0.05
+max_difference = 0.015
 
 # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
-i_theta_step = 1
-i_phi_step = 1
+i_theta_step = 0.8
+i_phi_step = 0.8
 
 hfss = Hfss(project=project_name, design=design_name, non_graphical=False)
 oDesktop = hfss.odesktop
@@ -433,13 +433,14 @@ def run_analysis(num_cores, max_delta_E, max_passes, plane_wave_face, Ei, output
                         waveguide_data, far_field_data = run_refined_plane_wave(plane_wave_face, frequency, num_cores, max_delta_E, max_passes, Ei, output_file_location,
                         Ephi, waveguide_data, far_field_data, rad_params, refine_regions, csv=False)
                     else:
-                        print(f"No region to refine with fractional difference greater than {max_difference:.4f}")
+                        print("Adaptive sweep has converged")
                         converged = True
 
                 # Output two csv files at the end of the sweep for each polarization for each frequency
                 print(f"Exporting waveguide and far field data to csv for frequency {frequency}GHz, Ephi={Ephi}")
                 folder_name = f"{project_name}_{design_name}_{frequency}GHz_Ephi={E_phi}"
                 folder_path = os.path.join(output_file_location, folder_name)
+                os.makedirs(folder_path, exist_ok=True)
 
                 waveguide_output_filename = "refined_waveguide.csv"
                 full_path = os.path.join(folder_path, waveguide_output_filename)
@@ -478,6 +479,8 @@ def run_refined_plane_wave(plane_wave_face, frequency, num_cores, max_delta_E, m
             print("Updating CSV file following this set of refining")
             folder_name = f"{project_name}_{design_name}_{frequency}GHz_Ephi={Ephi}"
             folder_path = os.path.join(output_file_location, folder_name)
+            os.makedirs(folder_path, exist_ok=True)
+
             output_filename = f"refined_{name}.csv"
             full_path = os.path.join(folder_path, output_filename)
             combined.to_csv(full_path, index=False)
@@ -572,6 +575,8 @@ def run_refined_plane_wave(plane_wave_face, frequency, num_cores, max_delta_E, m
 # a dictionary of intervals that require additional sampling, merged when appropriate and ordered
 # by percent power difference compared to the incoming power
 def find_regions_to_refine(incoming_power, waveguide_data, max_difference):
+    max_frac_diff_seen = 0.0
+
     print("Finding regions to refine!")
 
     # Focus only on unique angular combinations
@@ -603,9 +608,9 @@ def find_regions_to_refine(incoming_power, waveguide_data, max_difference):
             for jj in range(j + 1, power_grid.shape[1]):
                 neighbor_power = power_grid[i, jj]
                 if not np.isnan(neighbor_power):
-                    frac_diff = 0.0 if abs(current_power - neighbor_power) / max_power <= 1e-4 else abs(current_power - neighbor_power) / max(abs(current_power), abs(neighbor_power))
+                    frac_diff = abs(current_power - neighbor_power) / max_power
+                    max_frac_diff_seen = max(max_frac_diff_seen, frac_diff)
 
-                    #frac_diff = abs(current_power - neighbor_power) / max_power
                     if frac_diff > max_difference:
                         phi1, phi2 = phi_vals[j], phi_vals[jj]
                         theta1 = theta_vals[i]
@@ -635,9 +640,9 @@ def find_regions_to_refine(incoming_power, waveguide_data, max_difference):
             for ii in range(i + 1, power_grid.shape[0]):
                 neighbor_power = power_grid[ii, j]
                 if not np.isnan(neighbor_power):
-                    frac_diff = 0.0 if abs(current_power - neighbor_power) / max_power <= 1e-4 else abs(current_power - neighbor_power) / max(abs(current_power), abs(neighbor_power))
+                    frac_diff = abs(current_power - neighbor_power) / max_power
+                    max_frac_diff_seen = max(max_frac_diff_seen, frac_diff)
 
-                    #frac_diff = abs(current_power - neighbor_power) / max_power
                     if frac_diff > max_difference:
                         theta1, theta2 = theta_vals[i], theta_vals[ii]
                         phi1 = phi_vals[j]
@@ -665,7 +670,8 @@ def find_regions_to_refine(incoming_power, waveguide_data, max_difference):
 
     if not refine_regions:
         print("No regions found that exceed the fractional difference threshold.")
-        return []
+        print(f"Maximum fractional difference seen: {max_frac_diff_seen:.5f}")
+        return False
 
     # Sort regions by strength of power contrast (descending)
     refine_regions.sort(key=lambda x: x["frac_diff"], reverse=True)
