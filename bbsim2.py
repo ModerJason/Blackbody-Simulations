@@ -12,6 +12,7 @@ Created on 03/20/2025
 # (2) The code expects many parameters to be filled in regarding the layout
 # (3) If is desired, it is possible to Keyboard Interrupt in the middle of a simulation and save to csv. Then,
 # it is possible to begin a new simulation with this existing data. 
+# (4) The output .csv files are large, so to use the data, import directly using pandas.
 
 # Usage:
 # Steps to use the data. We seek to simulate the photon's trajectory through the waveguide and its probability distribution
@@ -21,7 +22,8 @@ Created on 03/20/2025
 # the ratio can be set to 1
 # (2) Where the photon is emitted on the output face: given by the electric field at the output face, and the
 # probability of emission from each individual location on the output face is proportional to the square of the
-# electric field amplitude (MagE) at those discretized points.
+# electric field amplitude (MagE) at those discretized points. Note that the sampling in the narrow dimension of the
+# waveguide may be sparse; this is because the electric field does not vary along that dimension (in the TEM mode)
 # (3) The outgoing k vector for the photon: given by the far field radiation pattern, and the probability of emission
 # into each outgoing k vector is proportional to power in the far field, which is proportional to |MagE|^2. |MagE|^2
 # can be calculated as |MagE|^2 = (rEphi_real)^2 + (rEphi_imag)^2 + (rEtheta_real)^2 + (rEtheta_imag)^2
@@ -33,7 +35,7 @@ Created on 03/20/2025
 # (ii) The probability of emitting from any particular point is again weighted by a^2 and b^2, i.e.
 # a^2*Prob(x,y,z) for |0> + b^2*Prob(x,y,z) for |1> (iii) same thing for the far field radiation pattern
 
-# Packages: pyaedt, scipy, pandas, numpy
+# Packages: pyaedt, scipy, pandas, numpy, seaborn (for plotting)
 
 import sys
 import threading
@@ -55,7 +57,7 @@ mu_0 = constants.mu_0
 
 # HFSS project setup (project name and design name)
 project_name = "InfParallelPlate"
-design_name = "bbsim11"
+design_name = "bbsim12"
 
 # The folder to output all output files
 repo_root = os.path.dirname(os.path.abspath(__file__))
@@ -103,7 +105,7 @@ b = 0.05 # [um]
 # The general guideline of sampling is 10 points across the narrowest feature, but we take more than 50 points to be safe
 # Here, the narrowest feature is 180 degrees, and to be safe we can sample with 360/72=5 degree coarseness.
 fineness = 10
-minimum_coarseness = 0 # degrees
+minimum_coarseness = 0.1 # degrees
 maximum_coarseness = 5 # degrees
 
 # Collect radiation parameters into one variable for cleanness
@@ -115,8 +117,8 @@ sweep = "adaptive"
 max_difference = 0.05
 
 # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
-i_theta_step = 90
-i_phi_step = 90
+i_theta_step = 1
+i_phi_step = 1
 
 hfss = Hfss(project=project_name, design=design_name, non_graphical=False)
 oDesktop = hfss.odesktop
@@ -601,7 +603,7 @@ def find_regions_to_refine(incoming_power, waveguide_data, max_difference):
             for jj in range(j + 1, power_grid.shape[1]):
                 neighbor_power = power_grid[i, jj]
                 if not np.isnan(neighbor_power):
-                    frac_diff = 0.0 if abs(current_power - neighbor_power) / max_power <= 1e-6 else abs(current_power - neighbor_power) / max(abs(current_power), abs(neighbor_power))
+                    frac_diff = 0.0 if abs(current_power - neighbor_power) / max_power <= 1e-4 else abs(current_power - neighbor_power) / max(abs(current_power), abs(neighbor_power))
 
                     #frac_diff = abs(current_power - neighbor_power) / max_power
                     if frac_diff > max_difference:
@@ -633,7 +635,7 @@ def find_regions_to_refine(incoming_power, waveguide_data, max_difference):
             for ii in range(i + 1, power_grid.shape[0]):
                 neighbor_power = power_grid[ii, j]
                 if not np.isnan(neighbor_power):
-                    frac_diff = 0.0 if abs(current_power - neighbor_power) / max_power <= 1e-6 else abs(current_power - neighbor_power) / max(abs(current_power), abs(neighbor_power))
+                    frac_diff = 0.0 if abs(current_power - neighbor_power) / max_power <= 1e-4 else abs(current_power - neighbor_power) / max(abs(current_power), abs(neighbor_power))
 
                     #frac_diff = abs(current_power - neighbor_power) / max_power
                     if frac_diff > max_difference:
