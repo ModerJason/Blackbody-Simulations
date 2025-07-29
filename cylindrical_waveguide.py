@@ -54,7 +54,7 @@ from typing import Optional
 c = constants.c
 mu_0 = constants.mu_0
 project_name = "InfParallelPlate"
-design_name = "bbsim15"
+design_name = "cylindrical2"
 repo_root = os.path.dirname(os.path.abspath(__file__))
 output_file_location = os.path.join(repo_root, "HFSSSimData") # The folder to output all output files
 os.makedirs(output_file_location, exist_ok=True)
@@ -69,26 +69,26 @@ max_passes = 10 # HFSS analysis sweep parameter
 num_cores = 4
 
 ingoing_face_id = 8 # Check face id's of the plane wave ingoing face and outgoing face by clicking select object/by name
-outgoing_face_id = 7
+outgoing_face_id = 9
 
 # Frequencies in GHz
-freq_lower, freq_upper, freq_step = 500, 550, 100
+freq_lower, freq_upper, freq_step = 2000, 2050, 100
 
 # The following 4 variables refer to sweeps over incident plane wave. These angles are with respect to the global
 # coordinate system. Symmetry can be used to make these sweeps less wide
-i_theta_lower, i_theta_upper, i_phi_lower, i_phi_upper = 90, 180, 0, 90
+i_theta_lower, i_theta_upper, i_phi_lower, i_phi_upper = 90, 180, 90, 180
 
 # Define x and y directions of outgoing coordinate systems (vectors relative to global coordinate system)
 # x direction points outward from face. The z direction is automatic from the right-hand rule.
 # It is helpful to redefine a coordinate system so that the theta and phi sweep correspond to sweeps corresponding
 # to the two length scales. The 4 angular variables refer to sweeps over the far field radiation, with respect to the user-defined CS
-outgoing_face_cs_x = [0, 0, 1]
+outgoing_face_cs_x = [1, 0, 0]
 outgoing_face_cs_y = [0, 1, 0]
 rad_theta_lower, rad_theta_upper, rad_phi_lower, rad_phi_upper = 0, 180, -90, 90
 
 # b is the length scale of the dimension coinciding with the sweep over theta
-a = 10 # length scale of the dimension coinciding with the sweep over phi [mm]
-b = 0.05 # length scale of the dimension coinciding with the sweep over theta [mm]
+a = 0.1 # length scale of the dimension coinciding with the sweep over phi [mm]
+b = 0.1 # length scale of the dimension coinciding with the sweep over theta [mm]
 
 fineness = 10 #1/fineness is the fraction of lambda/a swept over each radiation step in theta and phi
 # Maximum coarseness is the maximum coarseness of the angular sweeps, in degrees.
@@ -105,8 +105,8 @@ rad_params = rad_theta_lower, rad_theta_upper, rad_phi_lower, rad_phi_upper, a, 
 sweep = "adaptive"
 max_difference = 0.015
 
-i_theta_step = 0.8 # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
-i_phi_step = 0.8
+i_theta_step = 5 # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
+i_phi_step = 5
 
 hfss = Hfss(project=project_name, design=design_name, non_graphical=False)
 oDesktop = hfss.odesktop
