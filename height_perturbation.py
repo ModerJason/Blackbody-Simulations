@@ -13,7 +13,7 @@ Created on 03/20/2025
 # (3) If is desired, it is possible to Keyboard Interrupt in the middle of a simulation and save to csv. Then,
 # it is possible to begin a new simulation with this existing data. 
 # (4) The output .csv files are large, so to use the data, import directly using pandas.
-# (5) Make sure there are no additional variables defined! This can lead to errors in exporting far field data due to a technicality
+# (5) Make sure there are no additional variables defined except for E_phi! This can lead to errors in exporting far field data due to a technicality
 # Usage:
 # Steps to use the data. We seek to simulate the photon's trajectory through the waveguide and its probability distribution
 # over output angles. We decouple this into 4 phases
@@ -54,7 +54,7 @@ from typing import Optional
 c = constants.c
 mu_0 = constants.mu_0
 project_name = "InfParallelPlate"
-design_name = "bbsim18"
+design_name = "height_perturb"
 repo_root = os.path.dirname(os.path.abspath(__file__))
 output_file_location = os.path.join(repo_root, "HFSSSimData") # The folder to output all output files
 os.makedirs(output_file_location, exist_ok=True)
@@ -69,7 +69,7 @@ max_passes = 10 # HFSS analysis sweep parameter
 num_cores = 4
 
 ingoing_face_id = 8 # Check face id's of the plane wave ingoing face and outgoing face by clicking select object/by name
-outgoing_face_id = 7
+outgoing_face_id = 35
 
 # Frequencies in GHz
 freq_lower, freq_upper, freq_step = 500, 550, 100
@@ -88,7 +88,7 @@ rad_theta_lower, rad_theta_upper, rad_phi_lower, rad_phi_upper = 0, 180, -90, 90
 
 # b is the length scale of the dimension coinciding with the sweep over theta
 a = 10 # length scale of the dimension coinciding with the sweep over phi [mm]
-b = 0.05 # length scale of the dimension coinciding with the sweep over theta [mm]
+b = 0.1 # length scale of the dimension coinciding with the sweep over theta [mm]
 
 fineness = 10 #1/fineness is the fraction of lambda/a swept over each radiation step in theta and phi
 # Maximum coarseness is the maximum coarseness of the angular sweeps, in degrees.
@@ -102,11 +102,11 @@ rad_params = rad_theta_lower, rad_theta_upper, rad_phi_lower, rad_phi_upper, a, 
 
 # Adaptive or discrete sweep. For adaptive sweep, max difference is maximum fractional difference allowed between
 # any two points in the sweep, relative to the total maximum value of the outgoing power.
-sweep = "adaptive"
+sweep = "discrete"
 max_difference = 0.015
 
-i_theta_step = 0.8 # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
-i_phi_step = 0.8
+i_theta_step = 15 # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
+i_phi_step = 15
 
 hfss = Hfss(project=project_name, design=design_name, non_graphical=False)
 oDesktop = hfss.odesktop
