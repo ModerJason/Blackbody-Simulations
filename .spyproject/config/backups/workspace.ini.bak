@@ -4,7 +4,7 @@ save_data_on_exit = True
 save_history = True
 save_non_project_files = False
 project_type = 'empty-project-type'
-recent_files = ['bbsim2.py', 'cylindrical_waveguide.py', 'plot.py', 'height_perturbation.py']
+recent_files = ['..\\..\\NewMusic\\new_music5.py', '..\\..\\NewMusic\\IQ_mixer_noise_main.py']
 
 [main]
 version = 0.2.0

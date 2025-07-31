@@ -54,7 +54,7 @@ from typing import Optional
 c = constants.c
 mu_0 = constants.mu_0
 project_name = "InfParallelPlate"
-design_name = "bbsim18"
+design_name = "bbsim19"
 repo_root = os.path.dirname(os.path.abspath(__file__))
 output_file_location = os.path.join(repo_root, "HFSSSimData") # The folder to output all output files
 os.makedirs(output_file_location, exist_ok=True)
@@ -72,7 +72,7 @@ ingoing_face_id = 8 # Check face id's of the plane wave ingoing face and outgoin
 outgoing_face_id = 7
 
 # Frequencies in GHz
-freq_lower, freq_upper, freq_step = 500, 550, 100
+freq_lower, freq_upper, freq_num = 500, 500, 1
 
 # The following 4 variables refer to sweeps over incident plane wave. These angles are with respect to the global
 # coordinate system. Symmetry can be used to make these sweeps less wide
@@ -1100,7 +1100,7 @@ def clear_simulation():
     for sphere_name in oModuleRad.GetSetupNames("Infinite Sphere"):
         oModuleRad.DeleteSetup([sphere_name])
 
-#%%
+    #%%
 def main():
 
     # Simulation begins here
@@ -1111,7 +1111,11 @@ def main():
     add_outgoing_power_to_calculator()
 
     if not import_from_existing_csv:
-        frequencies = list(range(freq_lower, freq_upper, freq_step))
+        log_lower = np.log10(freq_lower)
+        log_upper = np.log10(freq_upper)
+        frequencies = np.logspace(log_lower, log_upper, freq_num)
+        frequencies = np.round(frequencies).astype(int)
+        print(f"Frequency list (logarithmic scale): {frequencies}")
 
         # Previous frequency mesh is used for more efficient meshing of new frequency
         previous_frequency = None
