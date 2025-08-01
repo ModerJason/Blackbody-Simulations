@@ -98,6 +98,7 @@ def plot_far_field_by_incoming_angle_fixed(csv_path,
     if not isinstance(phi_in_list, (list, tuple)):
         phi_in_list = [phi_in_list]
 
+    rounded_fixed_value = round(fixed_value)
     plt.figure(figsize=(10, 7))
     for theta_in in theta_in_list:
         for phi_in in phi_in_list:
@@ -112,14 +113,14 @@ def plot_far_field_by_incoming_angle_fixed(csv_path,
             Etheta_mag = np.sqrt(df_filt["rEtheta_real"]**2 + df_filt["rEtheta_imag"]**2)
             Etot = np.sqrt(Ephi_mag**2 + Etheta_mag**2)
 
-            label = (fr"{fixed_param} = {fixed_value}°, "
+            label = (fr"{fixed_param} = {rounded_fixed_value}°, "
                      fr"$\theta_{{in}}$ = {theta_in}°, "
                      fr"$\phi_{{in}}$ = {phi_in}°")
             plt.plot(df_filt[varying_col], Etot, label=label)
 
     plt.xlabel(xlabel_units)
     plt.ylabel(r"$|E|$ (V/m)")
-    plt.title(f"{title_prefix} at {fixed_param} = {fixed_value}°")
+    plt.title(f"{title_prefix} at {fixed_param} = {rounded_fixed_value}°")
     plt.legend(fontsize='small', loc='best')
     plt.grid(True)
     plt.tight_layout()
@@ -171,8 +172,8 @@ def plot_far_field_by_incoming_angle(csv_path,
 
     plt.tight_layout()
 #%%
-waveguide_data = "C:/Users/Jason Wang/spyder/projects/Blackbody/Blackbody-Simulations/HFSSSimData/InfParallelPlate_height_perturb_500GHz_Ephi=0/waveguide.csv"
-far_field_data = "C:/Users/Jason Wang/spyder/projects/Blackbody/Blackbody-Simulations/HFSSSimData/InfParallelPlate_height_perturb_500GHz_Ephi=0/far_field.csv"
+waveguide_data = "C:/Users/Jason Wang/spyder/projects/Blackbody/Blackbody-Simulations/HFSSSimData/InfParallelPlate_right_angle_500GHz_Ephi=0/waveguide.csv"
+far_field_data = "C:/Users/Jason Wang/spyder/projects/Blackbody/Blackbody-Simulations/HFSSSimData/InfParallelPlate_right_angle_500GHz_Ephi=0/far_field.csv"
 #%%
 pivot = load_and_pivot(waveguide_data)
 
@@ -186,8 +187,8 @@ plot_exit_field_by_incoming_angle(csv_path=waveguide_data, theta_in =180, phi_in
 #%%
 plot_far_field_by_incoming_angle_fixed(
     csv_path=far_field_data,
-    theta_in_list=[180, 165, 150],
-    phi_in_list=[0, 15, 30],
+    theta_in_list=[180, 170, 160],
+    phi_in_list=[0, 10, 20],
     fixed_param=r"$\theta_{out}$",
     fixed_value=90
 )
