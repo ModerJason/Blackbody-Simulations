@@ -14,6 +14,7 @@ Created on 03/20/2025
 # it is possible to begin a new simulation with this existing data. 
 # (4) The output .csv files are large, so to use the data, import directly using pandas.
 # (5) Make sure there are no additional variables defined! This can lead to errors in exporting far field data due to a technicality
+
 # Usage:
 # Steps to use the data. We seek to simulate the photon's trajectory through the waveguide and its probability distribution
 # over output angles. We decouple this into 4 phases
@@ -54,7 +55,7 @@ from typing import Optional
 c = constants.c
 mu_0 = constants.mu_0
 project_name = "InfParallelPlate"
-design_name = "right_angle"
+design_name = "bbsim22"
 repo_root = os.path.dirname(os.path.abspath(__file__))
 output_file_location = os.path.join(repo_root, "HFSSSimData") # The folder to output all output files
 os.makedirs(output_file_location, exist_ok=True)
@@ -69,7 +70,15 @@ max_passes = 10 # HFSS analysis sweep parameter
 num_cores = 4
 
 ingoing_face_id = 8 # Check face id's of the plane wave ingoing face and outgoing face by clicking select object/by name
-outgoing_face_id = 40
+outgoing_face_id = 7
+
+# Whether to specify manually the boundary and resolution of the outgoing face. If manual_field is set to False,
+# HFSS will infer the appropriate sampling resolution, but it is coarse. If manual_field is set to True and outgoing_face_boundary is set to None,
+# the bounding region for the outgoing face is inferred, but it only works for rectilinear faces aligned with the 
+# coordinate axis. outgoing_face_boundary can also be manually specified for non-rectilinear geometries.
+manual_field = True
+outgoing_face_boundary = None # Or specify ([x1, y1, z1], [x2, y2, z2]), e.g.([0, -5, 1], [0.05, 5, 1]) Boundary of the outgoing face (relative to global CS)
+outgoing_face_field_resolution = ["0.001mm", "0.1mm", "0mm"] # Resolution in outputting the electric field at the outgoing face
 
 # Frequencies in GHz
 freq_lower, freq_upper, freq_num = 500, 500, 1
@@ -82,7 +91,7 @@ i_theta_lower, i_theta_upper, i_phi_lower, i_phi_upper = 90, 180, 0, 90
 # x direction points outward from face. The z direction is automatic from the right-hand rule.
 # It is helpful to redefine a coordinate system so that the theta and phi sweep correspond to sweeps corresponding
 # to the two length scales. The 4 angular variables refer to sweeps over the far field radiation, with respect to the user-defined CS
-outgoing_face_cs_x = [1, 0, 0]
+outgoing_face_cs_x = [0, 0, 1]
 outgoing_face_cs_y = [0, 1, 0]
 rad_theta_lower, rad_theta_upper, rad_phi_lower, rad_phi_upper = 0, 180, -90, 90
 
@@ -102,12 +111,13 @@ rad_params = rad_theta_lower, rad_theta_upper, rad_phi_lower, rad_phi_upper, a, 
 
 # Adaptive or discrete sweep. For adaptive sweep, max difference is maximum fractional difference allowed between
 # any two points in the sweep, relative to the total maximum value of the outgoing power.
-sweep = "discrete"
+sweep = "adaptive"
 max_difference = 0.015
 
-i_theta_step = 5 # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
-i_phi_step = 5
+i_theta_step = 90 # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
+i_phi_step = 90
 
+#%%
 hfss = Hfss(project=project_name, design=design_name, non_graphical=False)
 oDesktop = hfss.odesktop
 oProject = oDesktop.SetActiveProject(project_name)
@@ -418,6 +428,8 @@ def run_analysis(num_cores, max_delta_E, max_passes, plane_wave_face, Ei, output
                     result = find_regions_to_refine(incoming_power, waveguide_data, max_difference)
                     if result is not False:
                         refine_regions = result
+                        # Update the waveguide and far-field data frames every cycle of refinement (refining all regions). You can change the 
+                        # csv=False to csv=True if you want the .csv file to be updated every cycle
                         waveguide_data, far_field_data = run_refined_plane_wave(plane_wave_face, frequency, num_cores, max_delta_E, max_passes, Ei, output_file_location,
                         Ephi, waveguide_data, far_field_data, rad_params, refine_regions, csv=False)
                     else:
@@ -747,16 +759,17 @@ def get_incoming_power(Ei, plane_wave_face):
     # Unit conversion from mm^2 to m^2
     return 1e-6 *  hfss.modeler.get_face_area(plane_wave_face.id) * Ei ** 2 / (2 * c * mu_0)
 
+
 # Create Pandas DF of (1) of the output power swept as a function of angles and electric field
 # polarization and (2) electric field magnitude at output. Added timing for debugging purposes. Export time depends
 # on both resolution and size of the waveguide.
 def extract_waveguide_data(frequency, Ei, plane_wave_face, i_theta_lower, i_theta_upper, i_phi_lower, i_phi_upper,
                            i_theta_step, i_phi_step, output_file_location, E_phi, csv=True, refine=False):
-
+   
     freq_str = f"{frequency}GHz"
     setup_name = get_setup_name(frequency) + ("_refine : LastAdaptive" if refine else " : LastAdaptive")
     exit_field_path = os.path.join(output_file_location, f"{project_name}_exitfield_{freq_str}.fld")
-
+        
     i_theta_num, i_phi_num = get_incoming_phi_theta_num(
         i_theta_lower, i_theta_upper, i_phi_lower, i_phi_upper, i_theta_step, i_phi_step)
     i_phi_values = np.linspace(i_phi_lower, i_phi_upper, i_phi_num)
@@ -795,21 +808,53 @@ def extract_waveguide_data(frequency, Ei, plane_wave_face, i_theta_lower, i_thet
     # Second Pass: Field Export + Read
     print("Starting second pass: waveguide exit field export")
     t2 = time.perf_counter()
-    oModuleFields.CalcStack("clear")
-    oModuleFields.CopyNamedExprToStack("Mag_E")
-    oModuleFields.EnterSurf("outgoing")
-    oModuleFields.CalcOp("Value")
 
+    if manual_field:
+        oModuleFields.CalcStack("clear")
+        oModuleFields.CopyNamedExprToStack("Mag_E")
+        unit = oEditor.GetModelUnits()
+        if outgoing_face_boundary is not None:
+            range_min = ['{}{}'.format(i, unit) for i in outgoing_face_boundary[0]]
+            range_max = ['{}{}'.format(i, unit) for i in outgoing_face_boundary[1]]
+        else:
+            vertex_ids = oEditor.GetVertexIDsFromFace(outgoing_face_id)
+            vertex_positions = [oEditor.GetVertexPosition(i) for i in vertex_ids]
+            x, y, z = zip(*vertex_positions)
+            x = [float(i) for i in x]
+            y = [float(i) for i in y]
+            z = [float(i) for i in z]
+            range_min = ['{}{}'.format(i, unit) for i in [min(x), min(y), min(z)]]
+            range_max = ['{}{}'.format(i, unit) for i in [max(x), max(y), max(z)]]
+    else:
+        oModuleFields.CalcStack("clear")
+        oModuleFields.CopyNamedExprToStack("Mag_E")
+        oModuleFields.EnterSurf("outgoing")
+        oModuleFields.CalcOp("Value")
+    
+    # vertex_ids = oEditor.GetVertexIDsFromFace(outgoing_face_id)
+    # vertex_positions = [oEditor.GetVertexPosition(i) for i in vertex_ids]
+    # x, y, z = zip(*vertex_positions)
+    # x = [float(i) for i in x]
+    # y = [float(i) for i in y]
+    # z = [float(i) for i in z]
+    # boundary = ([min(x), min(y),min(z)], [max(x), max(y), max(z)])
+        
     for i_phi in i_phi_values:
         for i_theta in i_theta_values:
             i_phi_str = f"{i_phi}deg"
             i_theta_str = f"{i_theta}deg"
 
             t_export = time.perf_counter()
-            oModuleFields.CalculatorWrite(exit_field_path,
-                ["Solution:=", setup_name],
-                ["Ephi:=", E_phi, "Freq:=", freq_str, "IWavePhi:=", i_phi_str, "IWaveTheta:=", i_theta_str])
-            print(f"Exported field in {time.perf_counter() - t_export:.3f}s")
+        
+            if(manual_field):    
+                oModuleFields.ExportOnGrid(exit_field_path, range_min, range_max, outgoing_face_field_resolution, setup_name, ["Ephi:=", E_phi, "Freq:=", freq_str, "IWavePhi:=", i_phi_str,
+    		    "IWaveTheta:=", i_theta_str, "Phase:=", "0deg"], ["NAME:ExportOption", "IncludePtInOutput:=", True, "RefCSName:=", "Global", "PtInSI:=", True, "FieldInRefCS:=", False], "Cartesian", 
+            ["0mm","0mm","0mm"], False)
+            else:
+                oModuleFields.CalculatorWrite(exit_field_path,
+                    ["Solution:=", setup_name],
+                    ["Ephi:=", E_phi, "Freq:=", freq_str, "IWavePhi:=", i_phi_str, "IWaveTheta:=", i_theta_str])
+                print(f"Exported field in {time.perf_counter() - t_export:.3f}s")
 
             t_read = time.perf_counter()
             df = read_hfss_field(exit_field_path)
@@ -980,10 +1025,11 @@ def read_hfss_field(filepath):
     data_lines = lines[2:]
 
     # Read numeric values into a (N, 4) NumPy array: X, Y, Z, |E|
-    data = np.array([
+    data = [
         list(map(float, line.strip().split()))
-        for line in data_lines if line.strip()
-    ])
+        for line in data_lines
+        if line.strip() and line.strip().split()[-1].lower() != 'nan'
+    ]
 
     df = pd.DataFrame(data, columns=['X', 'Y', 'Z', 'Mag_E'])
 
@@ -1100,7 +1146,9 @@ def clear_simulation():
     for sphere_name in oModuleRad.GetSetupNames("Infinite Sphere"):
         oModuleRad.DeleteSetup([sphere_name])
 
-    #%%
+    
+
+#%%
 def main():
 
     # Simulation begins here
@@ -1153,3 +1201,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

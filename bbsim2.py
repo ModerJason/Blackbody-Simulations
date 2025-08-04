@@ -54,7 +54,7 @@ from typing import Optional
 c = constants.c
 mu_0 = constants.mu_0
 project_name = "InfParallelPlate"
-design_name = "bbsim19"
+design_name = "bbsim21"
 repo_root = os.path.dirname(os.path.abspath(__file__))
 output_file_location = os.path.join(repo_root, "HFSSSimData") # The folder to output all output files
 os.makedirs(output_file_location, exist_ok=True)
@@ -102,11 +102,11 @@ rad_params = rad_theta_lower, rad_theta_upper, rad_phi_lower, rad_phi_upper, a, 
 
 # Adaptive or discrete sweep. For adaptive sweep, max difference is maximum fractional difference allowed between
 # any two points in the sweep, relative to the total maximum value of the outgoing power.
-sweep = "adaptive"
+sweep = "discrete"
 max_difference = 0.015
 
-i_theta_step = 0.8 # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
-i_phi_step = 0.8
+i_theta_step = 90 # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
+i_phi_step = 90
 
 hfss = Hfss(project=project_name, design=design_name, non_graphical=False)
 oDesktop = hfss.odesktop
