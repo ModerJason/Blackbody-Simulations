@@ -65,7 +65,7 @@ def plot_exit_field_by_incoming_angle(csv_path, theta_in, phi_in,
         print(f"No data for θ={theta_in}°, φ={phi_in}° at {fixed_coord.lower()} = {fixed_value}")
         return
 
-    E_mag = np.sqrt(df_filt["Ex"]**2 + df_filt["Ey"]**2 + df_filt["Ez"]**2)
+    E_mag = np.sqrt(df_filt["Ex_real"]**2 + df_filt["Ey_real"]**2 + df_filt["Ez_real"]**2 + df_filt["Ex_imag"]**2 + df_filt["Ey_imag"]**2 + df_filt["Ez_imag"]**2)
 
     # Scatter plot of the E-field over the output plane
     plt.figure(figsize=(7, 6))

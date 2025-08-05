@@ -812,7 +812,6 @@ def extract_waveguide_data(frequency, Ei, plane_wave_face, i_theta_lower, i_thet
     if manual_field:
         oModuleFields.CalcStack("clear")
         oModuleFields.EnterQty("E")
-        oModuleFields.CalcOp("Real")
         oModuleFields.CalcOp("Smooth")
         unit = oEditor.GetModelUnits()
         if outgoing_face_boundary is not None:
@@ -830,7 +829,6 @@ def extract_waveguide_data(frequency, Ei, plane_wave_face, i_theta_lower, i_thet
     else:
         oModuleFields.CalcStack("clear")
         oModuleFields.EnterQty("E")
-        oModuleFields.CalcOp("Real")
         oModuleFields.CalcOp("Smooth")
         oModuleFields.EnterSurf("outgoing")
         oModuleFields.CalcOp("Value") 
@@ -1027,7 +1025,7 @@ def read_hfss_field(filepath):
         if line.strip() and line.strip().split()[-1].lower() != 'nan'
     ]
 
-    df = pd.DataFrame(data, columns=['X', 'Y', 'Z', 'Ex', 'Ey', 'Ez'])
+    df = pd.DataFrame(data, columns=['X', 'Y', 'Z', 'Ex_real', 'Ey_real', 'Ez_real', 'Ex_imag', 'Ey_imag', 'Ez_imag'])
 
     # Delete the file from the computer for memory purposes
     try:
