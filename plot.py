@@ -65,9 +65,11 @@ def plot_exit_field_by_incoming_angle(csv_path, theta_in, phi_in,
         print(f"No data for θ={theta_in}°, φ={phi_in}° at {fixed_coord.lower()} = {fixed_value}")
         return
 
+    E_mag = np.sqrt(df_filt["Ex"]**2 + df_filt["Ey"]**2 + df_filt["Ez"]**2)
+
     # Scatter plot of the E-field over the output plane
     plt.figure(figsize=(7, 6))
-    sc = plt.scatter(df_filt[x_axis], df_filt[y_axis], c=df_filt["Mag_E"], cmap=cmap, s=s)
+    sc = plt.scatter(df_filt[x_axis], df_filt[y_axis], c=E_mag, cmap=cmap, s=s)
     plt.xlabel(f"{x_axis.lower()} (m)")
     plt.ylabel(f"{y_axis.lower()} (m)")
     plt.title(rf"$|E|$ at {fixed_coord.lower()} = {fixed_value}m for $\theta_{{in}}$ = {theta_in}°, $\phi_{{in}}$ = {phi_in}°")
@@ -172,8 +174,8 @@ def plot_far_field_by_incoming_angle(csv_path,
 
     plt.tight_layout()
 #%%
-waveguide_data = "C:/Users/Jason Wang/spyder/projects/Blackbody/Blackbody-Simulations/HFSSSimData/InfParallelPlate_bbsim22_500GHz_Ephi=1/waveguide.csv"
-far_field_data = "C:/Users/Jason Wang/spyder/projects/Blackbody/Blackbody-Simulations/HFSSSimData/InfParallelPlate_bbsim22_500GHz_Ephi=1/far_field.csv"
+waveguide_data = "C:/Users/Jason Wang/spyder/projects/Blackbody/Blackbody-Simulations/HFSSSimData/InfParallelPlate_bbsim23_500GHz_Ephi=0/waveguide.csv"
+far_field_data = "C:/Users/Jason Wang/spyder/projects/Blackbody/Blackbody-Simulations/HFSSSimData/InfParallelPlate_bbsim23_500GHz_Ephi=0/far_field.csv"
 #%%
 pivot = load_and_pivot(waveguide_data)
 

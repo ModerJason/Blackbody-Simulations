@@ -55,7 +55,7 @@ from typing import Optional
 c = constants.c
 mu_0 = constants.mu_0
 project_name = "InfParallelPlate"
-design_name = "bbsim22"
+design_name = "bbsim23"
 repo_root = os.path.dirname(os.path.abspath(__file__))
 output_file_location = os.path.join(repo_root, "HFSSSimData") # The folder to output all output files
 os.makedirs(output_file_location, exist_ok=True)
@@ -811,7 +811,9 @@ def extract_waveguide_data(frequency, Ei, plane_wave_face, i_theta_lower, i_thet
 
     if manual_field:
         oModuleFields.CalcStack("clear")
-        oModuleFields.CopyNamedExprToStack("Mag_E")
+        oModuleFields.EnterQty("E")
+        oModuleFields.CalcOp("Real")
+        oModuleFields.CalcOp("Smooth")
         unit = oEditor.GetModelUnits()
         if outgoing_face_boundary is not None:
             range_min = ['{}{}'.format(i, unit) for i in outgoing_face_boundary[0]]
@@ -827,9 +829,11 @@ def extract_waveguide_data(frequency, Ei, plane_wave_face, i_theta_lower, i_thet
             range_max = ['{}{}'.format(i, unit) for i in [max(x), max(y), max(z)]]
     else:
         oModuleFields.CalcStack("clear")
-        oModuleFields.CopyNamedExprToStack("Mag_E")
+        oModuleFields.EnterQty("E")
+        oModuleFields.CalcOp("Real")
+        oModuleFields.CalcOp("Smooth")
         oModuleFields.EnterSurf("outgoing")
-        oModuleFields.CalcOp("Value")
+        oModuleFields.CalcOp("Value") 
 
     for i_phi in i_phi_values:
         for i_theta in i_theta_values:
@@ -1016,14 +1020,14 @@ def read_hfss_field(filepath):
     # Skip the first 2 header lines
     data_lines = lines[2:]
 
-    # Read numeric values into a (N, 4) NumPy array: X, Y, Z, |E|
+    # Read numeric values into a (N, 6) NumPy array: X, Y, Z, Ex, Ey, Ez
     data = [
         list(map(float, line.strip().split()))
         for line in data_lines
         if line.strip() and line.strip().split()[-1].lower() != 'nan'
     ]
 
-    df = pd.DataFrame(data, columns=['X', 'Y', 'Z', 'Mag_E'])
+    df = pd.DataFrame(data, columns=['X', 'Y', 'Z', 'Ex', 'Ey', 'Ez'])
 
     # Delete the file from the computer for memory purposes
     try:
@@ -1193,4 +1197,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
