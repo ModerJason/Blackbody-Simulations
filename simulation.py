@@ -1,6 +1,4 @@
 import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
 import numpy as np
 
 waveguide_0_data = "C:/Users/Jason Wang/spyder/projects/Blackbody/Blackbody-Simulations/HFSSSimData/InfParallelPlate_bbsim23_500GHz_Ephi=0/waveguide.csv"
@@ -14,7 +12,8 @@ waveguide_1_df = pd.read_csv(waveguide_1_data)
 far_field_0_df = pd.read_csv(far_field_0_data)
 far_field_1_df = pd.read_csv(far_field_1_data)
 
-#%%
+#%% Stage 1: Finding the transmission power fraction of the waveguide
+
 def get_S21(phi_in, theta_in, polarization_0, polarization_1, df_0, df_1):
     """
     Retrieve the power transmission fraction |S21|^2 from HFSS data,
@@ -23,8 +22,8 @@ def get_S21(phi_in, theta_in, polarization_0, polarization_1, df_0, df_1):
     Parameters:
         phi_in (float): IWavePhi angle (in degrees)
         theta_in (float): IWaveTheta angle (in degrees)
-        polarization_0 (float): Component of incident E-field along polarization mode 0 (θ̂)
-        polarization_1 (float): Component of incident E-field along polarization mode 1 (ϕ̂)
+        polarization_0 (float): Amplitude of polarization mode 0 (Ephi=0)
+        polarization_1 (float): Amplitude of polarization mode 1 (Ephi=1)
         df_0 (pd.DataFrame): DataFrame for polarization mode 0 (Ephi=0)
         df_1 (pd.DataFrame): DataFrame for polarization mode 1 (Ephi=1)
 
@@ -172,7 +171,7 @@ def get_angular_emission_distribution(phi_in, theta_in, polarization_0, polariza
 
     probabilities = E2 / total_E2
 
-    # Normalize polarization vectors at each point
+    # Normalize outgoing polarization vectors at each point
     polarization_vectors = np.vstack([Etheta_total, Ephi_total]).T  # shape (N, 2)
     norms = np.linalg.norm(polarization_vectors, axis=1)
     # Avoid division by zero (set zero norm to 1 to avoid NaNs, those rows will have zero probability anyway)
@@ -193,10 +192,13 @@ assert np.isclose(magnitude_squared, 1.0), f"Magnitude squared is {magnitude_squ
 
 phi_in = 0
 theta_in = 180
+
 # Stage 1
 power_transmission_fraction = get_S21(
     phi_in, theta_in, polarization_0, polarization_1, waveguide_0_df, waveguide_1_df
 )
+
+# With this probability, the photon does not make it to the outgoing face of the waveguide
 print(power_transmission_fraction)
 
 # Stage 2
@@ -207,7 +209,14 @@ print(face_emission_distribution.sort_values("Probability", ascending=False).hea
 
 # Stage 3
 angular_emission_distribution = get_angular_emission_distribution(phi_in, theta_in, polarization_0, polarization_1, far_field_0_df, far_field_1_df)
-print(angular_emission_distribution.sort_values("Probability", ascending=False).head())
+print(
+    angular_emission_distribution
+    .assign(
+        Polarization=lambda df: df["Polarization"].apply(lambda arr: np.array2string(arr, precision=4, separator=',', suppress_small=True))
+    )[["Theta", "Phi", "Probability", "Polarization"]]
+    .sort_values("Probability", ascending=False)
+    .head()
+)
 #%%
 # Sample run
 def sample_emission_point(face_distribution):
@@ -241,6 +250,15 @@ def simulate_photon_emission(
         phi_in, theta_in, polarization_0, polarization_1, waveguide_0_df, waveguide_1_df
     )
 
+    # Decide if the photon reaches the end face
+    reached_end = np.random.rand() < S21_squared
+    if not reached_end:
+        # Photon is lost: nothing else to simulate
+        return {
+            "S21_squared": S21_squared,
+            "reached_end": False
+        }
+
     # Stage 2: Get normalized spatial emission distribution on outgoing face
     face_distribution = get_face_emission_distribution(
         phi_in, theta_in, polarization_0, polarization_1, waveguide_0_df, waveguide_1_df
@@ -254,10 +272,10 @@ def simulate_photon_emission(
     # Sample an emission point on the outgoing face
     sampled_point, sampled_point_index = sample_emission_point(face_distribution)
 
-    # Sample an emission angle (Theta, Phi) and get index
+    # Sample an emission angle (Theta, Phi)
     sampled_angle, sampled_angle_index = sample_emission_angle(angular_distribution)
 
-    # Find probability of the sampled point
+    # Extract emission point probability
     prob_point = face_distribution.loc[
         (face_distribution["X"] == sampled_point["X"]) &
         (face_distribution["Y"] == sampled_point["Y"]) &
@@ -265,13 +283,14 @@ def simulate_photon_emission(
         "Probability"
     ].values[0]
 
-    # Find probability of the sampled angle and polarization vector
+    # Extract angular emission probability and polarization
     angle_row = angular_distribution.iloc[sampled_angle_index]
     prob_angle = angle_row["Probability"]
-    polarization = angle_row["Polarization"]  # complex np.array([Etheta, Ephi])
+    polarization = angle_row["Polarization"]
 
     return {
         "S21_squared": S21_squared,
+        "reached_end": True,
         "sampled_point": sampled_point,
         "point_probability": prob_point,
         "face_distribution": face_distribution,
@@ -281,7 +300,8 @@ def simulate_photon_emission(
         "polarization_at_sampled_angle": polarization,
     }
 
-result = simulate_photon_emission(
+def simulate_multiple_emissions(
+    N,
     phi_in,
     theta_in,
     polarization_0,
@@ -289,28 +309,54 @@ result = simulate_photon_emission(
     waveguide_0_df,
     waveguide_1_df,
     far_field_0_df,
-    far_field_1_df,
+    far_field_1_df
+):
+    results = []
+    for _ in range(N):
+        result = simulate_photon_emission(
+            phi_in,
+            theta_in,
+            polarization_0,
+            polarization_1,
+            waveguide_0_df,
+            waveguide_1_df,
+            far_field_0_df,
+            far_field_1_df
+        )
+        results.append(result)
+    return results
+#%%
+N = 1 # or any number of desired samples
+all_results = simulate_multiple_emissions(
+    N,
+    phi_in,
+    theta_in,
+    polarization_0,
+    polarization_1,
+    waveguide_0_df,
+    waveguide_1_df,
+    far_field_0_df,
+    far_field_1_df
 )
 
-print("Transmission |S21|^2:", result["S21_squared"])
+num_reached = sum(1 for r in all_results if r["reached_end"])
+print(f"Out of {N} photons, {num_reached} reached the end face.")
+print(f"Transmission rate: {num_reached / N:.4f}")
 
-# Extract sampled point coordinates as floats
-x = result["sampled_point"]["X"]
-y = result["sampled_point"]["Y"]
-z = result["sampled_point"]["Z"]
-print(f"Sampled emission point (X, Y, Z): {x:.6f}, {y:.6f}, {z:.6f}")
+reached = [r for r in all_results if r["reached_end"]]
 
-print("Probability at sampled point:", result["point_probability"])
+points = pd.DataFrame([{
+    "X": r["sampled_point"]["X"],
+    "Y": r["sampled_point"]["Y"],
+    "Z": r["sampled_point"]["Z"],
+    "Probability": r["point_probability"]
+} for r in reached])
 
-# Extract sampled angle values as floats
-theta = result["sampled_angle"]["Theta"]
-phi = result["sampled_angle"]["Phi"]
-print(f"Sampled emission angle (Theta, Phi): {theta:.4f}, {phi:.4f}")
+angles = pd.DataFrame([{
+    "Theta": r["sampled_angle"]["Theta"],
+    "Phi": r["sampled_angle"]["Phi"],
+    "Probability": r["angle_probability"]
+} for r in reached])
 
-print("Probability at sampled angle:", result["angle_probability"])
-
-pol = result["polarization_at_sampled_angle"]
-print("Outgoing polarization vector (Etheta, Ephi):")
-print(f"Etheta = {pol[0].real:.4f} + {pol[0].imag:.4f}j")
-print(f"Ephi   = {pol[1].real:.4f} + {pol[1].imag:.4f}j")
-
+print(points.head())
+print(angles.head())

@@ -15,27 +15,6 @@ Created on 03/20/2025
 # (4) The output .csv files are large, so to use the data, import directly using pandas.
 # (5) Make sure there are no additional variables defined! This can lead to errors in exporting far field data due to a technicality
 
-# Usage:
-# Steps to use the data. We seek to simulate the photon's trajectory through the waveguide and its probability distribution
-# over output angles. We decouple this into 4 phases
-# (1) Probability that the photon reaches the output face of the waveguide: given by |S21|, or the ratio of the
-# output power to the input power. In the case where numerically the output power is greater than the input power,
-# the ratio can be set to 1
-# (2) Where the photon is emitted on the output face: given by the electric field at the output face, and the
-# probability of emission from each individual location on the output face is proportional to the square of the
-# electric field amplitude (MagE) at those discretized points. Note that the sampling in the narrow dimension of the
-# waveguide may be sparse; this is because the electric field does not vary along that dimension (in the TEM mode)
-# (3) The outgoing k vector for the photon: given by the far field radiation pattern, and the probability of emission
-# into each outgoing k vector is proportional to power in the far field, which is proportional to |MagE|^2. |MagE|^2
-# can be calculated as |MagE|^2 = (rEphi_real)^2 + (rEphi_imag)^2 + (rEtheta_real)^2 + (rEtheta_imag)^2
-# (4) The polarization of the outgoing photon can be found with the far field electric field.
-# For the polarization, the unit vector in the θ direction is (cosθcosϕ, cosθsinϕ, -sinθ), and the unit vector in 
-# the ϕ direction is (-sinϕ, cosϕ, 0).
-# Importantly, the photon will generally be in a linear combination of both polarizations, say a|0>+b|1>. When the photon is
-# entering the waveguide, (i) the probability of making it to the output face is a^2*|S21 for |0>| + b^2*|S21 for |1>|
-# (ii) The probability of emitting from any particular point is again weighted by a^2 and b^2, i.e.
-# a^2*Prob(x,y,z) for |0> + b^2*Prob(x,y,z) for |1> (iii) same thing for the far field radiation pattern
-
 # Packages: pyaedt, scipy, pandas, numpy, seaborn (for plotting)
 
 import sys
@@ -55,7 +34,7 @@ from typing import Optional
 c = constants.c
 mu_0 = constants.mu_0
 project_name = "InfParallelPlate"
-design_name = "bbsim23"
+design_name = "stub2"
 repo_root = os.path.dirname(os.path.abspath(__file__))
 output_file_location = os.path.join(repo_root, "HFSSSimData") # The folder to output all output files
 os.makedirs(output_file_location, exist_ok=True)
