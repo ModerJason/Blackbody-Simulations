@@ -111,11 +111,11 @@ rad_params = rad_theta_lower, rad_theta_upper, rad_phi_lower, rad_phi_upper, a, 
 
 # Adaptive or discrete sweep. For adaptive sweep, max difference is maximum fractional difference allowed between
 # any two points in the sweep, relative to the total maximum value of the outgoing power.
-sweep = "adaptive"
+sweep = "discrete"
 max_difference = 0.015
 
-i_theta_step = 90 # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
-i_phi_step = 90
+i_theta_step = 15 # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
+i_phi_step = 15
 
 #%%
 hfss = Hfss(project=project_name, design=design_name, non_graphical=False)
