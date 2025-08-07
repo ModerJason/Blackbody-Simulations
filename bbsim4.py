@@ -92,8 +92,8 @@ rad_params = rad_theta_lower, rad_theta_upper, rad_phi_lower, rad_phi_upper, a, 
 
 # Adaptive or discrete sweep. For adaptive sweep, max difference is maximum fractional difference allowed between
 # any two points in the sweep, relative to the total maximum value of the outgoing power.
-sweep = "discrete"
-max_difference = 0.015
+sweep = "adaptive"
+max_difference = 0.25
 
 #%%
 hfss = Hfss(project=project_name, design=design_name, non_graphical=False)
@@ -416,7 +416,7 @@ def run_analysis(num_cores, max_delta_E, max_passes, plane_wave_face, Ei, output
 
                 # Output two csv files at the end of the sweep for each polarization for each frequency
                 print(f"Exporting waveguide and far field data to csv for frequency {frequency}GHz, Ephi={Ephi}")
-                folder_name = f"{project_name}_{design_name}_{frequency}GHz_Ephi={E_phi}"
+                folder_name = f"{project_name}_{design_name}_{frequency}GHz_Ephi={Ephi}"
                 folder_path = os.path.join(output_file_location, folder_name)
                 os.makedirs(folder_path, exist_ok=True)
 
