@@ -31,10 +31,11 @@ import time
 from collections import defaultdict
 from typing import Optional
 
+#%%
 c = constants.c
 mu_0 = constants.mu_0
 project_name = "InfParallelPlate"
-design_name = "stub2"
+design_name = "bbsim24"
 repo_root = os.path.dirname(os.path.abspath(__file__))
 output_file_location = os.path.join(repo_root, "HFSSSimData") # The folder to output all output files
 os.makedirs(output_file_location, exist_ok=True)
@@ -65,6 +66,8 @@ freq_lower, freq_upper, freq_num = 500, 500, 1
 # The following 4 variables refer to sweeps over incident plane wave. These angles are with respect to the global
 # coordinate system. Symmetry can be used to make these sweeps less wide
 i_theta_lower, i_theta_upper, i_phi_lower, i_phi_upper = 90, 180, 0, 90
+i_theta_step = 15 # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
+i_phi_step = 15
 
 # Define x and y directions of outgoing coordinate systems (vectors relative to global coordinate system)
 # x direction points outward from face. The z direction is automatic from the right-hand rule.
@@ -74,11 +77,10 @@ outgoing_face_cs_x = [0, 0, 1]
 outgoing_face_cs_y = [0, 1, 0]
 rad_theta_lower, rad_theta_upper, rad_phi_lower, rad_phi_upper = 0, 180, -90, 90
 
-# b is the length scale of the dimension coinciding with the sweep over theta
 a = 10 # length scale of the dimension coinciding with the sweep over phi [mm]
 b = 0.05 # length scale of the dimension coinciding with the sweep over theta [mm]
-
 fineness = 10 #1/fineness is the fraction of lambda/a swept over each radiation step in theta and phi
+
 # Maximum coarseness is the maximum coarseness of the angular sweeps, in degrees.
 # For small widths (a or b small), phi or theta will have only 1 main lobe with angular width lambda/a very high.
 # The general guideline of sampling is 10 points across the narrowest feature
@@ -92,9 +94,6 @@ rad_params = rad_theta_lower, rad_theta_upper, rad_phi_lower, rad_phi_upper, a, 
 # any two points in the sweep, relative to the total maximum value of the outgoing power.
 sweep = "discrete"
 max_difference = 0.015
-
-i_theta_step = 15 # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
-i_phi_step = 15
 
 #%%
 hfss = Hfss(project=project_name, design=design_name, non_graphical=False)
