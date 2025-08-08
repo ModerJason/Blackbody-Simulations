@@ -23,4 +23,6 @@ For more details on analytical calculations, validation for HFSS simulations, an
 - ANSYS HFSS 2023 R2+  
 - Python packages: `numpy`, `scipy`, `matplotlib`, `pyaedt`, `seaborn`
 
+This project is developed using the [Spyder IDE](https://www.spyder-ide.org/).
+
 
