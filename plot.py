@@ -174,8 +174,8 @@ def plot_far_field_by_incoming_angle(csv_path,
 
     plt.tight_layout()
 #%%
-waveguide_data = "C:/Users/Jason Wang/spyder/projects/Blackbody/Blackbody-Simulations/HFSSSimData/InfParallelPlate_stub2_500GHz_Ephi=0/waveguide.csv"
-far_field_data = "C:/Users/Jason Wang/spyder/projects/Blackbody/Blackbody-Simulations/HFSSSimData/InfParallelPlate_stub2_500GHz_Ephi=0/far_field.csv"
+waveguide_data = "C:/Users/Jason Wang/spyder/projects/Blackbody/Blackbody-Simulations/HFSSSimData/InfParallelPlate_bbsim24_500GHz_Ephi=1/refined_waveguide.csv"
+far_field_data = "C:/Users/Jason Wang/spyder/projects/Blackbody/Blackbody-Simulations/HFSSSimData/InfParallelPlate_bbsim24_500GHz_Ephi=1/refined_far_field.csv"
 #%%
 pivot = load_and_pivot(waveguide_data)
 
