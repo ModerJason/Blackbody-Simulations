@@ -245,6 +245,58 @@ def simulate_photon_emission(
     far_field_0_df,
     far_field_1_df
 ):
+    """
+    Simulate a single photon emission event through a waveguide and into free space.
+
+    The simulation proceeds in three stages:
+    1. Compute the transmission probability |S21|² for the given incident angles and polarizations,
+       and decide probabilistically if the photon reaches the waveguide's output face.
+    2. If the photon reaches the end face, sample a spatial emission point from the normalized
+       outgoing face distribution.
+    3. Sample an angular emission direction and polarization from the normalized far-field distribution.
+
+    Parameters
+    ----------
+    phi_in : float
+        Incident azimuthal angle (degrees).
+    theta_in : float
+        Incident polar angle (degrees).
+    polarization_0 : str
+        Polarization state label for waveguide 0 input.
+    polarization_1 : str
+        Polarization state label for waveguide 1 input.
+    waveguide_0_df : pandas.DataFrame
+        Data for waveguide 0 containing S-parameters and spatial emission info.
+    waveguide_1_df : pandas.DataFrame
+        Data for waveguide 1 containing S-parameters and spatial emission info.
+    far_field_0_df : pandas.DataFrame
+        Far-field angular distribution data for waveguide 0.
+    far_field_1_df : pandas.DataFrame
+        Far-field angular distribution data for waveguide 1.
+
+    Returns
+    -------
+    dict
+        A dictionary with the following keys:
+        - "S21_squared" : float
+            Transmission probability |S21|².
+        - "reached_end" : bool
+            Whether the photon reached the output face.
+        - "sampled_point" : pandas.Series, optional
+            Coordinates (X, Y, Z) of the sampled emission point (only if reached_end is True).
+        - "point_probability" : float, optional
+            Probability density at the sampled point.
+        - "face_distribution" : pandas.DataFrame, optional
+            Full normalized spatial emission distribution.
+        - "sampled_angle" : tuple, optional
+            Emission angles (Theta, Phi) of the photon.
+        - "angle_probability" : float, optional
+            Probability density at the sampled angle.
+        - "angular_distribution" : pandas.DataFrame, optional
+            Full normalized angular emission distribution.
+        - "polarization_at_sampled_angle" : str, optional
+            Polarization state corresponding to the sampled angle.
+    """
     # Stage 1: Compute |S21|^2 (power transmission)
     S21_squared = get_S21(
         phi_in, theta_in, polarization_0, polarization_1, waveguide_0_df, waveguide_1_df
@@ -311,6 +363,39 @@ def simulate_multiple_emissions(
     far_field_0_df,
     far_field_1_df
 ):
+    """
+    Run multiple photon emission simulations for a fixed incoming wave configuration.
+
+    This function calls `simulate_photon_emission` N times and stores the results
+    for statistical analysis or Monte Carlo estimation.
+
+    Parameters
+    ----------
+    N : int
+        Number of photons to simulate.
+    phi_in : float
+        Incident azimuthal angle (degrees).
+    theta_in : float
+        Incident polar angle (degrees).
+    polarization_0 : str
+        Polarization state label for waveguide 0 input.
+    polarization_1 : str
+        Polarization state label for waveguide 1 input.
+    waveguide_0_df : pandas.DataFrame
+        Data for waveguide 0 containing S-parameters and spatial emission info.
+    waveguide_1_df : pandas.DataFrame
+        Data for waveguide 1 containing S-parameters and spatial emission info.
+    far_field_0_df : pandas.DataFrame
+        Far-field angular distribution data for waveguide 0.
+    far_field_1_df : pandas.DataFrame
+        Far-field angular distribution data for waveguide 1.
+
+    Returns
+    -------
+    list of dict
+        A list containing the results of each simulation, as returned by
+        `simulate_photon_emission`.
+    """
     results = []
     for _ in range(N):
         result = simulate_photon_emission(

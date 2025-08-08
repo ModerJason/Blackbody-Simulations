@@ -3,15 +3,38 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
 
-# Load CSV and create a pivot table of outgoing power indexed by incident angles
 def load_and_pivot(csv_path):
+    """
+    Load a CSV file containing waveguide simulation data and create a pivot table
+    of the outgoing power indexed by incident angles.
+
+    Parameters:
+        csv_path (str): Path to the CSV file to load.
+
+    Returns:
+        pandas.DataFrame: A pivot table with 'IWaveTheta' as the index, 'IWavePhi' as the columns,
+                          and 'OutgoingPower' as the values. Duplicate angle pairs are removed
+                          before pivoting.
+    """
     df = pd.read_csv(csv_path)
     df_unique = df.drop_duplicates(subset=["IWavePhi", "IWaveTheta"])
     pivot = df_unique.pivot(index="IWaveTheta", columns="IWavePhi", values="OutgoingPower")
     return pivot
 
-# Plot a heatmap of outgoing power from a pivot table
 def plot_outgoing_power_heatmap(pivot_table, title, cmap="viridis"):
+    """
+    Plot a heatmap of the outgoing power from a pivot table of waveguide data.
+
+    Parameters:
+        pivot_table (pandas.DataFrame): Pivot table with outgoing power values,
+                                        indexed by incident theta angles (rows) and
+                                        incident phi angles (columns).
+        title (str): Title of the plot.
+        cmap (str, optional): Colormap to use for the heatmap. Defaults to "viridis".
+
+    Returns:
+        None. Displays a heatmap plot.
+    """
     plt.figure(figsize=(8, 6))
     sns.heatmap(pivot_table, annot=False, fmt=".2e", cmap=cmap, cbar_kws={"label": r"$P_{out}$ (W)"})
     plt.title(title)
@@ -19,8 +42,22 @@ def plot_outgoing_power_heatmap(pivot_table, title, cmap="viridis"):
     plt.ylabel(r"$\theta_{in}$ (degrees)")
     plt.tight_layout()
 
-# Plot outgoing power vs the varying angle (either theta_in or phi_in) for fixed values of the other
 def plot_outgoing_power_by_incoming_angle(csv_path, fixed_param, fixed_values):
+    """
+    Plot outgoing power as a function of one incoming angle (theta_in or phi_in)
+    for fixed values of the other angle.
+
+    Parameters:
+        csv_path (str): Path to the CSV file containing the waveguide data.
+        fixed_param (str): The angle to fix, either r"$\\theta_{in}$" or r"$\\phi_{in}$".
+        fixed_values (float or list of floats): One or more fixed values for the fixed_param angle (in degrees).
+
+    Raises:
+        ValueError: If fixed_param is not one of the allowed strings.
+
+    Returns:
+        None. Displays a line plot.
+    """
     param_map = {
         r"$\theta_{in}$": "IWaveTheta",
         r"$\phi_{in}$": "IWavePhi"
@@ -50,11 +87,28 @@ def plot_outgoing_power_by_incoming_angle(csv_path, fixed_param, fixed_values):
         plt.legend()
     plt.tight_layout()
 
-# Plot E-field magnitude at a fixed exit plane using incoming angles
 def plot_exit_field_by_incoming_angle(csv_path, theta_in, phi_in,
                                      fixed_coord="Z", fixed_value=0.001,
                                      x_axis="X", y_axis="Y",
                                      s=10, cmap="viridis"):
+    """
+    Plot the electric field magnitude on a fixed exit plane slice as a function of position,
+    for specified incoming angles θ_in and φ_in.
+
+    Parameters:
+        csv_path (str): Path to the CSV file containing the exit field data.
+        theta_in (float): Incoming polar angle θ_in in degrees.
+        phi_in (float): Incoming azimuthal angle φ_in in degrees.
+        fixed_coord (str, optional): The coordinate to fix (e.g., 'Z'). Default is 'Z'.
+        fixed_value (float, optional): The fixed value of the coordinate (e.g., plane location). Default is 0.001 (meters).
+        x_axis (str, optional): Coordinate to plot on x-axis. Default is 'X'.
+        y_axis (str, optional): Coordinate to plot on y-axis. Default is 'Y'.
+        s (int, optional): Marker size for scatter plot. Default is 10.
+        cmap (str, optional): Matplotlib colormap name. Default is 'viridis'.
+
+    Returns:
+        None. Displays a scatter plot of |E| magnitude on the exit plane.
+    """
     df = pd.read_csv(csv_path)
     # Filter data for the given incoming angles and fixed coordinate slice (e.g., z=0.001)
     df_filt = df[(df["IWaveTheta"] == theta_in) & 
@@ -76,13 +130,27 @@ def plot_exit_field_by_incoming_angle(csv_path, theta_in, phi_in,
     plt.colorbar(sc, label=r"$|E|$ (V/m)")
     plt.tight_layout()
 
-# Plot 1D slices of far-field magnitude at a fixed outgoing angle
 def plot_far_field_by_incoming_angle_fixed(csv_path,
                                     theta_in_list,
                                     phi_in_list,
                                     fixed_param,
                                     fixed_value,
                                     title_prefix="Far-field E-Field Magnitude"):
+    """
+    Plot 1D slices of far-field electric field magnitude at a fixed outgoing angle (θ_out or φ_out),
+    varying the other outgoing angle, for given lists of incoming angles θ_in and φ_in.
+
+    Parameters:
+        csv_path (str): Path to the CSV file containing far field data.
+        theta_in_list (float or list of floats): Incoming polar angles θ_in in degrees.
+        phi_in_list (float or list of floats): Incoming azimuthal angles φ_in in degrees.
+        fixed_param (str): Fixed outgoing angle parameter, either r"$\theta_{out}$" or r"$\phi_{out}$".
+        fixed_value (float): The fixed value of the outgoing angle in degrees.
+        title_prefix (str, optional): Title prefix for the plot. Default is "Far-field E-Field Magnitude".
+
+    Returns:
+        None. Displays a 1D plot of |E| vs varying outgoing angle.
+    """
     param_map = {
         r"$\theta_{out}$": "Theta",
         r"$\phi_{out}$": "Phi"
@@ -127,13 +195,27 @@ def plot_far_field_by_incoming_angle_fixed(csv_path,
     plt.grid(True)
     plt.tight_layout()
 
-# Plot full 2D far-field heatmap (E-field magnitude) for a specific incoming angle
 def plot_far_field_by_incoming_angle(csv_path,
                                      theta_in,
                                      phi_in,
                                      cmap="viridis",
                                      title_prefix="Far-field E-Field Magnitude",
                                      tick_interval=10):
+    """
+   Plot a 2D heatmap of far-field E-field magnitude as a function of outgoing angles
+   for a specific incoming angle (theta_in, phi_in).
+
+   Parameters:
+       csv_path (str): Path to CSV file with far-field data.
+       theta_in (float): Incoming polar angle in degrees.
+       phi_in (float): Incoming azimuthal angle in degrees.
+       cmap (str): Matplotlib colormap name.
+       title_prefix (str): Title prefix for the plot.
+       tick_interval (int): Interval between axis ticks in degrees.
+
+   Returns:
+       None. Displays a heatmap plot.
+   """
     df = pd.read_csv(csv_path)
 
     # Filter for specified incoming angles

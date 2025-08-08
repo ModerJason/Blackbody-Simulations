@@ -32,12 +32,12 @@ from collections import defaultdict
 from typing import Optional
 
 #%%
-c = constants.c
-mu_0 = constants.mu_0
-project_name = "InfParallelPlate"
-design_name = "bbsim24"
+c = constants.c # Speed of light
+mu_0 = constants.mu_0 # permeability of free space
+project_name = "InfParallelPlate" # Name of the HFSS project
+design_name = "bbsim25" # Name of the HFSS design
 repo_root = os.path.dirname(os.path.abspath(__file__))
-output_file_location = os.path.join(repo_root, "HFSSSimData") # The folder to output all output files
+output_file_location = os.path.join(repo_root, "HFSSSimData") # The folder to output all data files
 os.makedirs(output_file_location, exist_ok=True)
 
 import_from_existing_csv = False # Whether to import waveguide and far_field_data from existing CSV (default is false)
@@ -92,10 +92,11 @@ rad_params = rad_theta_lower, rad_theta_upper, rad_phi_lower, rad_phi_upper, a, 
 
 # Adaptive or discrete sweep. For adaptive sweep, max difference is maximum fractional difference allowed between
 # any two points in the sweep, relative to the total maximum value of the outgoing power.
-sweep = "adaptive"
+sweep = "discrete"
 max_difference = 0.25
 
 #%%
+# Instantiate HFSS session and set the project and design appropriately
 hfss = Hfss(project=project_name, design=design_name, non_graphical=False)
 oDesktop = hfss.odesktop
 oProject = oDesktop.SetActiveProject(project_name)
@@ -118,14 +119,38 @@ oModuleRad = oDesign.GetModule("RadField")
 
 #%%
 
-# Initialize the design variables for the project
 def initialize_variables(Ei):
+    """
+    Initialize project variables for HFSS simulation.
+
+    This function creates the polarization Ephi and sets the incident electric 
+    field amplitude Ei to the specified value without sweeping it.
+
+    Parameters:
+        Ei (float): The amplitude of the incident electric field to set in the simulation [V/m]
+    """
     hfss["Ephi"] = 0
     hfss.variable_manager.set_variable("Ei", str(Ei), sweep=False)
 
-# Get ingoing and outgoing faces and set up radiation boundaries for ingoing and outgoing faces
-# Radiation boundaries ensure that the faces act as open space / into vacuum
 def get_faces_from_face_id(ingoing_face_id, outgoing_face_id):
+    """
+    Retrieve ingoing and outgoing faces by their IDs and assign radiation boundaries.
+
+    This function:
+    - Retrieves the face corresponding to the outgoing_face_id and stores it in a named face list "outgoing".
+    - Retrieves the ingoing face by ingoing_face_id.
+    - Assigns radiation boundaries to both the ingoing and outgoing faces, allowing them to behave as open-space/vacuum boundaries.
+
+    Parameters:
+        ingoing_face_id (int): The ID of the face where the incident plane wave enters the structure.
+        outgoing_face_id (int): The ID of the face from which waves exit the structure.
+
+    Returns:
+        tuple: A tuple (plane_wave_face, outgoing_face), where each element is a Face object from the HFSS model.
+
+    Raises:
+        RuntimeError: If either face cannot be retrieved or assigned correctly.
+    """
     try:
         outgoing_face = hfss.modeler.get_face_by_id(outgoing_face_id)
         hfss.modeler.create_face_list([outgoing_face], name="outgoing")
@@ -140,8 +165,19 @@ def get_faces_from_face_id(ingoing_face_id, outgoing_face_id):
     hfss.assign_radiation_boundary_to_faces(assignment=[outgoing_face.id], name="rbout")
     return plane_wave_face, outgoing_face
 
-# Create coordinate system for output face
 def create_local_coordinate_system(outgoing_face, outgoing_face_cs_x, outgoing_face_cs_y):
+    """
+    Create a local coordinate system aligned with the outgoing face.
+
+    This function creates a new coordinate system named "outgoing_cs" at the center 
+    of the specified outgoing face. The new coordinate system is defined in "axis" 
+    mode, with custom x and y directions provided.
+
+    Parameters:
+        outgoing_face (Face): The face object where the local coordinate system will be centered.
+        outgoing_face_cs_x (list or tuple): A 3-element vector specifying the x-direction.
+        outgoing_face_cs_y (list or tuple): A 3-element vector specifying the y-direction.
+    """
     hfss.modeler.create_coordinate_system(
         origin=outgoing_face.center,
         reference_cs="Global",
@@ -153,10 +189,19 @@ def create_local_coordinate_system(outgoing_face, outgoing_face_cs_x, outgoing_f
 
 # Add the expression for outgoing power to the fields calculator in HFSS
 def add_outgoing_power_to_calculator():
-    # Add calculated expression for the outgoing power through the output rectangle
-    # Note that although it should not be the case, in some cases numerically the power exiting the waveguide can be
-    # larger than the power entering, for example for TEM transmission. If run long enough, the HFSS simulation
-    # converges to a power ratio of 1
+    """
+    Add an expression to the HFSS fields calculator to compute outgoing power.
+
+    This function constructs and stores a named calculator expression "outgoing_power" 
+    that computes the magnitude of the real part of the Poynting vector integrated 
+    over the surface named "outgoing". This corresponds to the total power exiting 
+    through the output face of the waveguide.
+
+    Notes:
+        - In some cases (e.g., during early iterations or with certain boundary conditions), 
+          HFSS may report outgoing power greater than incoming power. 
+        - For stable simulations, the outgoing power should eventually converge to the correct value.
+    """
     oModuleFields.ClearAllNamedExpr()
     oModuleFields.CalcStack("Clear")
     oModuleFields.CopyNamedExprToStack("Vector_RealPoynting")
@@ -165,8 +210,22 @@ def add_outgoing_power_to_calculator():
     oModuleFields.CalcOp("Integrate")
     oModuleFields.AddNamedExpression("outgoing_power", "Fields")
 
-# Based on the ranges of the angles and the step sizes, calculate the number of points in the sweep in each angular direction
 def get_incoming_phi_theta_num(theta_lower, theta_upper, phi_lower, phi_upper, theta_step, phi_step):
+    """
+    Calculate the number of points in the sweep for incoming theta and phi angles,
+    based on their ranges and step sizes.
+
+    Parameters:
+        theta_lower (float): Lower bound of theta angle (degrees).
+        theta_upper (float): Upper bound of theta angle (degrees).
+        phi_lower (float): Lower bound of phi angle (degrees).
+        phi_upper (float): Upper bound of phi angle (degrees).
+        theta_step (float): Step size for theta angle (degrees).
+        phi_step (float): Step size for phi angle (degrees).
+
+    Returns:
+        tuple: (theta_num, phi_num), number of points in theta and phi directions.
+    """
     theta_range = theta_upper - theta_lower
     phi_range = phi_upper - phi_lower
     if theta_range == 0:
@@ -179,40 +238,145 @@ def get_incoming_phi_theta_num(theta_lower, theta_upper, phi_lower, phi_upper, t
         phi_num = int(np.ceil(phi_range / phi_step)) + 1
     return theta_num, phi_num
 
-# Get the desired number of points swept in theta and phi
 def get_radiation_phi_theta_num(theta_lower, theta_upper, phi_lower, phi_upper, a, b, freq, fineness, maximum_coarseness,
                                 minimum_coarseness):
+    """
+    Determine angular resolution and number of points to sweep in theta and phi for radiation pattern.
+
+    This function calculates the angular step sizes and total number of angular points 
+    in both theta and phi directions based on the specified waveguide dimensions, frequency, 
+    and desired sampling fineness. The step sizes are bounded between specified minimum 
+    and maximum angular coarseness.
+
+    Parameters:
+        theta_lower (float): Lower bound of theta sweep (in degrees).
+        theta_upper (float): Upper bound of theta sweep (in degrees).
+        phi_lower (float): Lower bound of phi sweep (in degrees).
+        phi_upper (float): Upper bound of phi sweep (in degrees).
+        a (float): Width of the waveguide (in mm), used to scale phi resolution.
+        b (float): Height of the waveguide (in mm), used to scale theta resolution.
+        freq (float): Frequency in GHz.
+        fineness (float): A scaling factor controlling the desired angular resolution.
+        maximum_coarseness (float): Upper bound on angular step size (in degrees).
+        minimum_coarseness (float): Lower bound on angular step size (in degrees).
+
+    Returns:
+        tuple:
+            - theta_step (float): Computed angular step size in theta (degrees).
+            - phi_step (float): Computed angular step size in phi (degrees).
+            - theta_num (int): Number of theta points in the sweep.
+            - phi_num (int): Number of phi points in the sweep.
+    """
     theta_range = theta_upper - theta_lower
     phi_range = phi_upper - phi_lower
+
     # Find wavelength and steps (using appropriate unit conversions)
     wavelength = c / (freq * 1e9)
-    # Sweep resolution is at least maximum_coarseness degrees in theta and phi
+
+    # Compute angular resolution for theta
     theta_step = np.minimum(maximum_coarseness, theta_range / np.pi * wavelength / (fineness * (b * 1e-3)))
     theta_step = np.maximum(minimum_coarseness, theta_step)
+
+    # Compute angular resolution for phi
     phi_step = np.minimum(maximum_coarseness, phi_range / np.pi * wavelength / (fineness * (a * 1e-3)))
     phi_step = np.maximum(minimum_coarseness, phi_step)
+
+    # Compute number of steps
     theta_num = int(np.ceil(theta_range / theta_step)) + 1
     phi_num = int(np.ceil(phi_range / phi_step)) + 1
+
     return theta_step, phi_step, theta_num, phi_num
 
+
 # Helper methods for naming conventions
+
 def get_plane_wave_name(frequency):
+    """
+    Generate a name for a plane wave excitation at a given frequency.
+
+    Parameters:
+        frequency (float): Frequency in GHz.
+
+    Returns:
+        str: Name of the plane wave excitation (e.g., "plane_wave_150GHz").
+    """
     return f"plane_wave_{frequency}GHz"
+
 def get_radiation_sphere_name(frequency):
+    """
+    Generate a name for the radiation sphere at a given frequency.
+
+    Parameters:
+        frequency (float): Frequency in GHz.
+
+    Returns:
+        str: Name of the radiation sphere (e.g., "radiation_sphere_150GHz").
+    """
     return f"radiation_sphere_{frequency}GHz"
+
 def get_setup_name(frequency):
+    """
+    Generate a standard simulation setup name for a given frequency.
+
+    Parameters:
+        frequency (float): Frequency in GHz.
+
+    Returns:
+        str: Setup name (e.g., "150GHz").
+    """
     return f"{frequency}GHz"
+
 def get_parametric_setup_name(frequency):
+    """
+    Generate a name for a parametric setup (e.g., Ephi sweep) at a given frequency.
+
+    Parameters:
+        frequency (float): Frequency in GHz.
+
+    Returns:
+        str: Name of the parametric setup (e.g., "E_phi_sweep_150GHz").
+    """
     return f"E_phi_sweep_{frequency}GHz"
 
-# Set up radiation boundaries and far field infinite sphere
 def setup_radiation(rad_params, frequency):
+    """
+    Set up radiation boundaries and insert a far-field infinite sphere for HFSS simulation.
+
+    This function:
+    - Computes angular step sizes and number of points for theta and phi based on the given
+      waveguide geometry and frequency.
+    - Constructs a far-field infinite radiation sphere using the computed resolution.
+    - Associates the radiation sphere with the "outgoing" face and the local coordinate system "outgoing_cs".
+
+    Parameters:
+        rad_params (tuple): A tuple containing the following values:
+            - rad_theta_lower (float): Lower bound of theta (degrees)
+            - rad_theta_upper (float): Upper bound of theta (degrees)
+            - rad_phi_lower (float): Lower bound of phi (degrees)
+            - rad_phi_upper (float): Upper bound of phi (degrees)
+            - a (float): Waveguide width (mm)
+            - b (float): Waveguide height (mm)
+            - fineness (float): Desired resolution control factor
+            - maximum_coarseness (float): Maximum allowable angular step (degrees)
+            - minimum_coarseness (float): Minimum allowable angular step (degrees)
+        frequency (float): Frequency in GHz at which the radiation sphere is defined.
+
+    Returns:
+        None
+    """
     rad_theta_lower, rad_theta_upper, rad_phi_lower, rad_phi_upper, a, b, fineness, maximum_coarseness, minimum_coarseness = rad_params
-    # Create far field infinite radiation sphere
-    rad_theta_step, rad_phi_step, rad_theta_num, rad_phi_num = get_radiation_phi_theta_num(rad_theta_lower,
-                                                                                           rad_theta_upper, rad_phi_lower, rad_phi_upper, a, b, frequency, fineness, maximum_coarseness, minimum_coarseness)
+
+    # Compute angular resolution and number of points
+    rad_theta_step, rad_phi_step, rad_theta_num, rad_phi_num = get_radiation_phi_theta_num(
+        rad_theta_lower, rad_theta_upper,
+        rad_phi_lower, rad_phi_upper,
+        a, b, frequency,
+        fineness, maximum_coarseness, minimum_coarseness
+    )
+
     sphere_name = get_radiation_sphere_name(frequency)
 
+    # Insert infinite radiation sphere for far-field observation
     hfss.insert_infinite_sphere(
         definition="Theta-Phi",
         x_start=rad_theta_lower, x_stop=rad_theta_upper, x_step=rad_theta_step,
@@ -221,19 +385,49 @@ def setup_radiation(rad_params, frequency):
         custom_coordinate_system="outgoing_cs",
         name=sphere_name
     )
-
+    
 # Setup plane wave
 def setup_plane_wave(plane_wave_face, i_theta_lower, i_theta_upper, i_phi_lower, i_phi_upper,
                      frequency, i_theta_step, i_phi_step, refine=False):
 
-    # Creation of plane wave is relative to Global CS (HFSS doesn't support relative CS)
+    """
+    Set up an incident plane wave excitation in HFSS using spherical angle sweeps.
+
+    This function:
+    - Computes the number of theta and phi points based on the given step sizes.
+    - Constructs a plane wave source on the specified input face using spherical coordinates.
+    - Uses symbolic polarization components: `Ephi` for phi-polarized and `1 - Ephi` for theta-polarized.
+    - Optionally adds a "_refine" suffix to the excitation name.
+
+    Note:
+        HFSS does not allow the plane wave excitation to be defined in a relative coordinate system; it must use the Global CS.
+        Polarization vectors:
+            - θ̂ = (cosθcosϕ, cosθsinϕ, -sinθ)
+            - ϕ̂ = (-sinϕ, cosϕ, 0)
+
+    Parameters:
+        plane_wave_face (Face): The face where the plane wave excitation is applied.
+        i_theta_lower (float): Lower bound of theta sweep (in degrees).
+        i_theta_upper (float): Upper bound of theta sweep (in degrees).
+        i_phi_lower (float): Lower bound of phi sweep (in degrees).
+        i_phi_upper (float): Upper bound of phi sweep (in degrees).
+        frequency (float): Frequency in GHz for naming and setup.
+        i_theta_step (float): Angular step size for theta sweep (in degrees).
+        i_phi_step (float): Angular step size for phi sweep (in degrees).
+        refine (bool, optional): If True, appends "_refine" to the plane wave excitation name.
+
+    Returns:
+        None
+    """
+    
+    # Compute number of angular steps
     i_theta_num, i_phi_num = get_incoming_phi_theta_num(i_theta_lower, i_theta_upper, i_phi_lower,
                                                                                   i_phi_upper, i_theta_step, i_phi_step)
     plane_wave_name = get_plane_wave_name(frequency)
     if refine:
         plane_wave_name += "_refine"
-    #For the polarization, the unit vector in the θ direction is (cosθcosϕ, cosθsinϕ, -sinθ), and the unit vector in 
-    # the ϕ direction is (-sinϕ, cosϕ, 0).    
+    
+    # Define plane wave excitation using symbolic polarization
     hfss.plane_wave(
         assignment=[plane_wave_face],
         vector_format="Spherical",
@@ -246,9 +440,31 @@ def setup_plane_wave(plane_wave_face, i_theta_lower, i_theta_upper, i_phi_lower,
         name=plane_wave_name
     )
 
-# Set up incident plane wave and radiation, sweep over frequencies, and parametric sweep over E-field polarizations
 def create_setup(frequency, max_delta_E, max_passes, previous_frequency):
+    """
+    Create an HFSS simulation setup for a given frequency, including adaptive meshing 
+    and a parametric sweep over electric field polarization.
 
+    This function:
+    - Creates a new solution setup for the specified frequency.
+    - If `previous_frequency` is provided, it attempts to import the adaptive mesh 
+      from that frequency's setup to speed up convergence.
+    - Adds a parametric sweep over the `Ephi` variable from 0 to 1 in steps of 1 
+      (to sweep between phi and theta polarization).
+
+    Parameters:
+        frequency (float): Frequency in GHz for this setup.
+        max_delta_E (float): Maximum allowed change in electric field between adaptive passes (convergence criteria).
+        max_passes (int): Maximum number of adaptive passes allowed for convergence.
+        previous_frequency (float or None): If given, mesh from this frequency will be reused via mesh import.
+
+    Returns:
+        None
+
+    Notes:
+        - If mesh reuse fails, it gracefully falls back to a fresh adaptive mesh setup.
+        - The parametric sweep is stored under a name like "E_phi_sweep_150GHz".
+    """
     freq_str = f"{frequency}GHz"
     setup_name = get_setup_name(frequency)
 
@@ -317,11 +533,60 @@ def create_setup(frequency, max_delta_E, max_passes, previous_frequency):
                                       ],
                                   ])
 
-# Run analysis, including adaptive analysis if appropriate.
 def run_analysis(num_cores, max_delta_E, max_passes, plane_wave_face, Ei, output_file_location, i_theta_lower, i_theta_upper, i_phi_lower, i_phi_upper,
                  frequency, i_theta_step, i_phi_step, rad_params, sweep = "adaptive", max_difference = 0.02, import_from_existing_csv = False, E_phi = None,
                  waveguide_data_csv = None, far_field_data_csv = None):
+    """
+    Run a full electromagnetic simulation in HFSS, including plane wave setup, field analysis, 
+    adaptive or discrete refinement sweeps, and optional data import/export.
 
+    This function supports multiple sweep modes:
+      - "discrete": Runs a single setup and extracts results without refinement.
+      - "adaptive": Iteratively refines regions based on difference threshold until convergence.
+      - "zoom": Placeholder mode, intended for future implementation.
+    
+    It also allows importing previously computed waveguide and far-field data to bypass the initial simulation.
+
+    Parameters:
+        num_cores (int): Number of processor cores to allocate for the analysis.
+        max_delta_E (float): Maximum acceptable change in electric field between adaptive passes.
+        max_passes (int): Maximum number of adaptive passes allowed.
+        plane_wave_face (object): HFSS face object where the plane wave is applied.
+        Ei (float): Incident electric field magnitude.
+        output_file_location (str): Path to the directory where result CSV files should be saved.
+        i_theta_lower (float): Lower bound of the incident theta angle (degrees).
+        i_theta_upper (float): Upper bound of the incident theta angle (degrees).
+        i_phi_lower (float): Lower bound of the incident phi angle (degrees).
+        i_phi_upper (float): Upper bound of the incident phi angle (degrees).
+        frequency (float): Frequency of simulation in GHz.
+        i_theta_step (float): Step size in theta for incident plane wave sweep.
+        i_phi_step (float): Step size in phi for incident plane wave sweep.
+        rad_params (tuple): Tuple containing radiation configuration parameters:
+            (rad_theta_lower, rad_theta_upper, rad_phi_lower, rad_phi_upper, a, b, fineness, maximum_coarseness, minimum_coarseness)
+        sweep (str, optional): Type of sweep ("adaptive", "discrete", "zoom"). Default is "adaptive".
+        max_difference (float, optional): Tolerance for convergence when refining fields. Default is 0.02.
+        import_from_existing_csv (bool, optional): Whether to skip simulation and import existing waveguide/far-field data. Default is False.
+        E_phi (float, optional): Optional specific polarization value (0 or 1) to sweep only one polarization. Default is both.
+        waveguide_data_csv (str, optional): Path to CSV file containing precomputed waveguide data (used only if importing).
+        far_field_data_csv (str, optional): Path to CSV file containing precomputed far-field data (used only if importing).
+
+    Behavior:
+        - Creates and applies a plane wave excitation.
+        - Runs HFSS analysis on total field configuration.
+        - Extracts waveguide and far-field data for E_phi = 0 and 1, or a specified value.
+        - If `adaptive` sweep is chosen, performs iterative refinement until convergence criteria is met.
+        - Stores final refined data in CSV files for each polarization and frequency.
+        - If importing CSVs, skips simulation and loads precomputed results.
+
+    Returns:
+        None
+
+    Notes:
+        - This function assumes global variables or modules such as `hfss`, `oModuleAnalysis`, `oModuleParametric`,
+          `project_name`, and `design_name` are defined elsewhere in the environment.
+        - The “zoom” sweep option is currently a placeholder for future development.
+    """
+    
     if sweep == "discrete":
         print(f"Discrete sweep has begun for frequency {frequency}GHz")
     elif sweep == "adaptive":
@@ -432,17 +697,79 @@ def run_analysis(num_cores, max_delta_E, max_passes, plane_wave_face, Ei, output
             if sweep == "zoom":
                 print("Temporary filler")
 
-# Runs refined plane wave sweeps for each region in the list of regions refine_regions. The function
-# also updates the dataframes.
 def run_refined_plane_wave(plane_wave_face, frequency, num_cores, max_delta_E, max_passes, Ei, output_file_location, Ephi, waveguide_data, far_field_data, rad_params,
     refine_regions, csv=False):
+    """
+    Perform refined plane wave sweeps over specified angular regions to improve simulation resolution,
+    updating waveguide and far-field data accordingly.
 
+    This function:
+    - Iterates over a list of refinement regions, each defining angular bounds and step sizes.
+    - For each region, deletes existing excitations and inserts a new adaptive setup with refined plane wave sweeps.
+    - Extracts waveguide and far-field data for each refined region.
+    - Merges new data with existing dataframes, optionally saving merged data to CSV files.
+    - Handles user interruption gracefully, allowing partial data export.
+
+    Parameters:
+        plane_wave_face (Face): HFSS face object where plane wave excitation is applied.
+        frequency (float): Simulation frequency in GHz.
+        num_cores (int): Number of CPU cores to use for HFSS analysis.
+        max_delta_E (float): Convergence criterion for maximum allowed electric field change.
+        max_passes (int): Maximum number of adaptive passes per setup.
+        Ei (float): Incident electric field magnitude.
+        output_file_location (str): Directory path to save output CSV files.
+        Ephi (float): Polarization parameter value for the sweep (0 or 1).
+        waveguide_data (pd.DataFrame): Existing waveguide data to update.
+        far_field_data (pd.DataFrame): Existing far-field data to update.
+        rad_params (tuple): Radiation parameters tuple:
+            (rad_theta_lower, rad_theta_upper, rad_phi_lower, rad_phi_upper, a, b, fineness, maximum_coarseness, minimum_coarseness)
+        refine_regions (list of dict): List of regions to refine, each dict contains:
+            - "phi_range": (phi_lower, phi_upper) tuple
+            - "theta_range": (theta_lower, theta_upper) tuple
+            - "phi_step": angular step size in phi (degrees)
+            - "theta_step": angular step size in theta (degrees)
+        csv (bool, optional): If True, merged dataframes are saved to CSV files after refinement. Default is False.
+
+    Returns:
+        tuple:
+            - waveguide_data (pd.DataFrame): Updated waveguide data including refined regions.
+            - far_field_data (pd.DataFrame): Updated far-field data including refined regions.
+
+    Notes:
+        - Uses a nested helper function `merge_fast` to efficiently combine existing and new data.
+        - Deletes adaptive setups after each region refinement to keep the project clean.
+        - Handles KeyboardInterrupt allowing the user to save partial results before exiting.
+    """
     rad_theta_lower, rad_theta_upper, rad_phi_lower, rad_phi_upper, a, b, fineness, maximum_coarseness, minimum_coarseness = rad_params
     rad_theta_step, rad_phi_step, rad_theta_num, rad_phi_num = get_radiation_phi_theta_num(rad_theta_lower, rad_theta_upper,
         rad_phi_lower, rad_phi_upper, a, b, frequency, fineness, maximum_coarseness, minimum_coarseness)
     key_cols = ["IWavePhi", "IWaveTheta"]
 
     def merge_fast(existing_df, new_dfs, name, merge_csv=False):
+        """
+    Efficiently merge new chunks of data with an existing DataFrame, avoiding duplicates based on key columns.
+
+    This function:
+    - Concatenates a list of new DataFrame chunks into a single DataFrame.
+    - Removes rows from the existing DataFrame that have keys overlapping with the new data.
+    - Combines the filtered existing data with the new data to produce an updated DataFrame.
+    - Optionally saves the combined DataFrame to a CSV file in a structured folder path.
+
+    Parameters:
+        existing_df (pd.DataFrame): The original DataFrame to be updated.
+        new_dfs (list of pd.DataFrame): List of new DataFrame chunks to merge into the existing DataFrame.
+        name (str): Identifier name for the dataset being merged (e.g., "waveguide" or "far_field").
+        merge_csv (bool, optional): If True, saves the merged DataFrame to a CSV file after merging. Default is False.
+
+    Returns:
+        pd.DataFrame: The combined DataFrame containing existing and new data without duplicate keys.
+
+    Notes:
+        - Assumes that the key columns used for identifying duplicates are ["IWavePhi", "IWaveTheta"].
+        - When saving to CSV, the file is named "refined_{name}.csv" and saved under a folder structure:
+          {output_file_location}/{project_name}_{design_name}_{frequency}GHz_Ephi={Ephi}/
+        - Prints timing and progress information during the merge process.
+    """
         print(f"[{name}] Starting merge of {len(new_dfs)} chunks...")
         t0 = time.perf_counter()
 
@@ -549,10 +876,56 @@ def run_refined_plane_wave(plane_wave_face, frequency, num_cores, max_delta_E, m
     far_field_data = merge_fast(far_field_data, far_field_chunks, "far_field", merge_csv=csv)
     return waveguide_data, far_field_data
 
-# Takes in a pandas DF for the waveguide data, consisting of the outgoing power at the exit. Returns
-# a dictionary of intervals that require additional sampling, merged when appropriate and ordered
-# by percent power difference compared to the incoming power
 def find_regions_to_refine(incoming_power, waveguide_data, max_difference):
+    """
+    Analyze outgoing power data on a theta-phi grid to identify angular regions requiring finer sampling.
+
+    This function compares adjacent points in the 2D outgoing power distribution (theta vs phi)
+    and detects intervals where the fractional difference in power exceeds a given threshold.
+    It generates refinement intervals along the phi and theta axes, merges contiguous intervals,
+    and returns a list of ordered regions prioritized by power contrast.
+
+    Parameters:
+        incoming_power (float): Reference power (usually the incident power) used for normalization.
+        waveguide_data (pd.DataFrame): DataFrame containing waveguide measurement points with columns:
+            - "IWaveTheta": Incident theta angles (degrees)
+            - "IWavePhi": Incident phi angles (degrees)
+            - "OutgoingPower": Measured outgoing power at each (theta, phi) point
+        max_difference (float): Fractional difference threshold above which a region is marked for refinement.
+
+    Returns:
+        list of dict or bool: 
+            - If regions needing refinement are found, returns a list of dictionaries, each describing:
+                - "phi_range": Tuple (phi_lower, phi_upper) in degrees defining phi bounds
+                - "theta_range": Tuple (theta_lower, theta_upper) in degrees defining theta bounds
+                - "phi_step": Suggested phi step size for refinement (degrees)
+                - "theta_step": Suggested theta step size for refinement (degrees)
+                - "frac_diff": The fractional power difference motivating refinement
+                - "pair": Tuple of index pairs ((i,j), (i2,j2)) indicating data points defining the interval
+            - Returns False if no regions exceed the threshold (no refinement needed).
+
+    Behavior:
+        - Removes duplicate angle entries.
+        - Reshapes data into a 2D grid indexed by theta and phi.
+        - Compares each point only with its immediate next valid neighbor in phi and theta directions.
+        - Generates finer subdivision steps to split intervals into 10 parts for refinement.
+        - Merges contiguous intervals that share boundaries and step sizes to reduce redundancy.
+        - Sorts the output list by descending fractional power difference (priority for refinement).
+
+    Notes:
+        - Prints informative messages about found regions and merging progress.
+        - Uses inner helper function `merge_contiguous_regions_by_group` to group and merge intervals.
+
+    Example output item:
+        {
+            "phi_range": (10.0, 15.0),
+            "theta_range": (20.0, 20.0),
+            "phi_step": 0.5,
+            "theta_step": 0.0,
+            "frac_diff": 0.12,
+            "pair": ((i1, j1), (i2, j2))
+        }
+    """
     max_frac_diff_seen = 0.0
 
     print("Finding regions to refine!")
@@ -732,18 +1105,58 @@ def find_regions_to_refine(incoming_power, waveguide_data, max_difference):
 
     return merged
 
-# Calculate incoming power
 def get_incoming_power(Ei, plane_wave_face):
-    # Unit conversion from mm^2 to m^2
+    """
+    Calculate the incoming electromagnetic power on a given face due to an incident plane wave.
+
+    The incoming power is computed using the incident electric field magnitude, the area of the specified face,
+    and fundamental constants (speed of light and vacuum permeability). The face area is converted from mm² to m².
+
+    Parameters:
+        Ei (float): Magnitude of the incident electric field (in V/m).
+        plane_wave_face (Face): HFSS face object representing the incoming wave boundary.
+
+    Returns:
+        float: Incoming power in watts (W) incident on the specified face.
+    """
     return 1e-6 *  hfss.modeler.get_face_area(plane_wave_face.id) * Ei ** 2 / (2 * c * mu_0)
 
-
-# Create Pandas DF of (1) of the output power swept as a function of angles and electric field
-# polarization and (2) electric field magnitude at output. Added timing for debugging purposes. Export time depends
-# on both resolution and size of the waveguide.
 def extract_waveguide_data(frequency, Ei, plane_wave_face, i_theta_lower, i_theta_upper, i_phi_lower, i_phi_upper,
                            i_theta_step, i_phi_step, output_file_location, E_phi, csv=True, refine=False):
-   
+    """
+    Extracts waveguide output data by sweeping over incident wave angles and electric field polarization,
+    generating a Pandas DataFrame containing outgoing power and electric field magnitude at the waveguide exit.
+
+    This function performs two passes:
+    1. Computes the outgoing power at the waveguide exit for each angle and polarization.
+    2. Exports and reads the electric field data on the output face grid for each angle and polarization.
+
+    The resulting data is concatenated into a DataFrame with columns including frequency, polarization, 
+    incident angles, outgoing power, ingoing power, and field magnitudes. Optionally exports the data as CSV.
+
+    Parameters:
+        frequency (float): Frequency in GHz at which data is extracted.
+        Ei (float): Magnitude of the incident electric field (V/m).
+        plane_wave_face (Face): HFSS face object representing the input wave boundary.
+        i_theta_lower (float): Lower bound of incident theta angle sweep (degrees).
+        i_theta_upper (float): Upper bound of incident theta angle sweep (degrees).
+        i_phi_lower (float): Lower bound of incident phi angle sweep (degrees).
+        i_phi_upper (float): Upper bound of incident phi angle sweep (degrees).
+        i_theta_step (float): Step size for theta angle sweep (degrees).
+        i_phi_step (float): Step size for phi angle sweep (degrees).
+        output_file_location (str): Directory path to save output files.
+        E_phi (float or None): Electric field polarization parameter; if None, default value is used.
+        csv (bool, optional): If True, exports the resulting DataFrame to a CSV file. Defaults to True.
+        refine (bool, optional): If True, uses refined solution data. Defaults to False.
+
+    Returns:
+        pandas.DataFrame: DataFrame containing waveguide output power, field magnitudes, and metadata for all swept angles and polarizations.
+
+    Notes:
+        - The function prints timing info for debugging and progress.
+        - The waveguide exit field export method can be toggled by the 'manual_field' global flag.
+        - The output DataFrame columns are reordered to prioritize frequency, polarization, angles, and power info.
+    """
     freq_str = f"{frequency}GHz"
     setup_name = get_setup_name(frequency) + ("_refine : LastAdaptive" if refine else " : LastAdaptive")
     exit_field_path = os.path.join(output_file_location, f"{project_name}_exitfield_{freq_str}.fld")
@@ -862,12 +1275,44 @@ def extract_waveguide_data(frequency, Ei, plane_wave_face, i_theta_lower, i_thet
     print(f"[{freq_str}] Total time: {(time.perf_counter() - start_time) / 60:.3f} min")
     return waveguide_df
 
-# Create Pandas DF of far field total electric field as a function of theta and phi. Note that this field is not normalized
-# and has unit of V, not V/m, which is not very important because we care only about ratios.
-# Added timing for debugging purposes. Export time depends on both resolution and size of the waveguide
 def extract_far_field_data(frequency, i_theta_lower, i_theta_upper, i_phi_lower, i_phi_upper,
                            i_theta_step, i_phi_step, rad_theta_step, rad_phi_step, output_file_location, E_phi, csv=True, refine=False):
+    """
+    Extracts the far field total electric field data from HFSS simulations over specified incident angles,
+    returning a Pandas DataFrame with complex electric field components for each combination of input parameters.
 
+    Parameters:
+        frequency (float): Frequency in GHz for which the data is extracted.
+        i_theta_lower (float): Lower bound of the incident theta angle sweep (degrees).
+        i_theta_upper (float): Upper bound of the incident theta angle sweep (degrees).
+        i_phi_lower (float): Lower bound of the incident phi angle sweep (degrees).
+        i_phi_upper (float): Upper bound of the incident phi angle sweep (degrees).
+        i_theta_step (float): Step size for incident theta angle sweep (degrees).
+        i_phi_step (float): Step size for incident phi angle sweep (degrees).
+        rad_theta_step (float): Step size for far field theta sampling (degrees).
+        rad_phi_step (float): Step size for far field phi sampling (degrees).
+        output_file_location (str): Directory path to save exported data and CSV files.
+        E_phi (float or int): Electric field polarization parameter for the incident wave.
+        csv (bool, optional): If True, exports the resulting DataFrame to a CSV file. Defaults to True.
+        refine (bool, optional): If True, uses refined adaptive solution data. Defaults to False.
+
+    Returns:
+        pandas.DataFrame: DataFrame containing the far field data with columns:
+            - Freq: Frequency string (e.g., "100GHz")
+            - Ephi: Electric field polarization parameter
+            - IWavePhi: Incident wave phi angle (degrees)
+            - IWaveTheta: Incident wave theta angle (degrees)
+            - Phi: Far field observation phi angle (degrees)
+            - Theta: Far field observation theta angle (degrees)
+            - rEphi_real, rEphi_imag: Real and imaginary parts of far field E_phi component
+            - rEtheta_real, rEtheta_imag: Real and imaginary parts of far field E_theta component
+
+    Notes:
+        - The function internally launches a monitoring thread to track the export file creation and completion,
+          ensuring that the file is fully written before reading.
+        - Timing printouts are included to help with performance debugging.
+        - Output CSV files are organized into a subfolder named according to the project, design, frequency, and polarization.
+    """
     freq_str = f"{frequency}GHz"
     setup_name = get_setup_name(frequency) + ("_refine : LastAdaptive" if refine else " : LastAdaptive")
     sphere_name = get_radiation_sphere_name(frequency)
@@ -983,20 +1428,35 @@ def extract_far_field_data(frequency, i_theta_lower, i_theta_upper, i_phi_lower,
     print(f"[{freq_str}] Done in {(time.perf_counter() - start_time ) /60:.3f} min")
     return far_field_df
 
-# Regex patterns (helper method for extract_far_field_data)
-def extract_var(field, variation_str):
-    match = re.search(fr"{field}='([^']+)'", variation_str)
-    return match.group(1) if match else None
-
-# Takes in the .fld file for the field at the exit of the waveguide and converts it to a df
 def read_hfss_field(filepath):
+    """
+   Reads a HFSS .fld file containing the electric field data at the exit of the waveguide
+   and converts it into a pandas DataFrame.
+
+   Assumes the file format has two header lines, followed by data lines each containing
+   nine floating-point numbers representing:
+   X, Y, Z coordinates and the real and imaginary parts of the electric field components:
+   Ex_real, Ey_real, Ez_real, Ex_imag, Ey_imag, Ez_imag.
+
+   Lines containing 'nan' values in the last column are skipped.
+
+   After reading, the function attempts to delete the file from disk to save memory.
+
+   Parameters:
+       filepath (str): Path to the .fld file to be read.
+
+   Returns:
+       pandas.DataFrame: DataFrame with columns ['X', 'Y', 'Z',
+       'Ex_real', 'Ey_real', 'Ez_real', 'Ex_imag', 'Ey_imag', 'Ez_imag'] containing
+       the field data.
+   """
     with open(filepath, 'r') as f:
         lines = f.readlines()
 
     # Skip the first 2 header lines
     data_lines = lines[2:]
 
-    # Read numeric values into a (N, 6) NumPy array: X, Y, Z, Ex, Ey, Ez
+    # Read numeric values into a (N, 6) NumPy array: X, Y, Z, Ex_real, Ey_real, Ez_real, Ex_imag, Ey_imag, Ez_imag
     data = [
         list(map(float, line.strip().split()))
         for line in data_lines
@@ -1013,8 +1473,29 @@ def read_hfss_field(filepath):
 
     return df
 
-# Takes in .ffd file for the far field and adds columns for rEphi_mag, rEphi_ang, rEtheta_mag, and rEtheta_ang
 def read_hfss_far_field(filepath, rad_theta_step, rad_phi_step):
+    """
+    Reads a HFSS .ffd far field file and returns a DataFrame with far field electric field
+    components, adding columns for real and imaginary parts of rEphi and rEtheta.
+
+    The file format is expected as follows:
+    - Line 0: theta_start, theta_end, number of theta points
+    - Line 1: phi_start, phi_end, number of phi points
+    - Lines 4 onward: field data for each (theta, phi) point, with four floats per line:
+      rEtheta_real, rEtheta_imag, rEphi_real, rEphi_imag
+
+    The function constructs a meshgrid of theta and phi values based on start, end, and step sizes,
+    and flattens the grid alongside the field data into a DataFrame.
+
+    Parameters:
+        filepath (str): Path to the .ffd far field file.
+        rad_theta_step (float): Angular step size for theta (degrees).
+        rad_phi_step (float): Angular step size for phi (degrees).
+
+    Returns:
+        pandas.DataFrame: DataFrame with columns ["Phi", "Theta", "rEphi_real", "rEphi_imag",
+        "rEtheta_real", "rEtheta_imag"], where Phi and Theta are angles in degrees.
+    """
     with open(filepath, 'r') as f:
         lines = f.readlines()
 
@@ -1057,8 +1538,23 @@ def read_hfss_far_field(filepath, rad_theta_step, rad_phi_step):
 
     return df
 
-# Delete excitations/far field radiation sphere and previous refinement setup following completion of each frequency
 def clear_analysis(frequency, sweep):
+    """
+    Cleans up HFSS project analysis data related to a given frequency by deleting excitations,
+    the far field radiation sphere, and previous refinement setups.
+
+    Specifically:
+    - Deletes all excitations.
+    - Deletes the far field radiation sphere setup corresponding to the given frequency.
+    - Disables the frequency sweep and parametric setups if the sweep type is 'discrete'.
+
+    Parameters:
+        frequency (float or int): Frequency value identifying the analysis to clear.
+        sweep (str): Type of frequency sweep; expected values include 'discrete' or others (e.g., 'adaptive').
+
+    Returns:
+        None
+    """
     sphere_name = get_radiation_sphere_name(frequency)
 
     oModuleBoundary.DeleteAllExcitations()
@@ -1077,8 +1573,24 @@ def clear_analysis(frequency, sweep):
         parametric_setup_name = get_parametric_setup_name(frequency)
         oModuleParametric.EnableSetup(parametric_setup_name, False)
 
-# Clear existing features to start fresh
 def clear_simulation():
+    """
+    Clears existing simulation features and setups in the HFSS project to prepare for a fresh start.
+
+    The function performs the following cleanup actions:
+    - Deletes any existing selection named 'outgoing' (e.g., outgoing face list).
+    - Deletes any existing local coordinate system named 'outgoing_cs'.
+    - Deletes all analysis setups and parametric setups.
+    - Attempts to revert mesh to the initial state.
+    - Deletes all existing boundaries and excitations.
+    - Deletes all far field radiation sphere setups of type "Infinite Sphere".
+
+    This function is useful for resetting the HFSS environment before creating new simulation configurations.
+
+    Returns:
+        None
+    """
+    
     # Delete existing outgoing face list
     try:
         oEditor.Delete([
@@ -1122,6 +1634,28 @@ def clear_simulation():
 
 #%%
 def main():
+    """
+    Main entry point for the waveguide simulation workflow.
+
+    This function orchestrates the entire simulation process, including:
+    - Clearing previous simulation features and setups.
+    - Initializing key variables and geometry references.
+    - Creating local coordinate systems and adding necessary calculator expressions.
+    - Generating a list of frequencies (logarithmically spaced) or loading from existing CSV data.
+    - For each frequency:
+        - Creating HFSS simulation setup with adaptive meshing.
+        - Setting up far field radiation boundaries.
+        - Running the analysis including field extractions and data exports.
+        - Clearing excitations and radiation spheres after each frequency (except the last for discrete sweeps).
+    - If importing from existing CSVs, parses frequency and Ephi values from folder names and runs analysis accordingly.
+    - Releases the HFSS desktop session while optionally keeping projects open.
+
+    This function serves as the high-level control flow to execute the full simulation, data extraction, 
+    and cleanup process.
+
+    Returns:
+        None
+    """
 
     # Simulation begins here
     clear_simulation()
