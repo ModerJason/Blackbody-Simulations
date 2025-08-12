@@ -35,7 +35,8 @@ from typing import Optional
 c = constants.c # Speed of light
 mu_0 = constants.mu_0 # permeability of free space
 project_name = "InfParallelPlate" # Name of the HFSS project
-design_name = "bbsim25" # Name of the HFSS design
+design_name = "faith" # Name of the HFSS design
+feature_name = "waveguide" # Name of the crack/feature/waveguide
 repo_root = os.path.dirname(os.path.abspath(__file__))
 output_file_location = os.path.join(repo_root, "HFSSSimData") # The folder to output all data files
 os.makedirs(output_file_location, exist_ok=True)
@@ -61,13 +62,14 @@ outgoing_face_boundary = None # Or specify ([x1, y1, z1], [x2, y2, z2]), e.g.([0
 outgoing_face_field_resolution = ["0.001mm", "0.1mm", "0mm"] # Resolution in outputting the electric field at the outgoing face
 
 # Frequencies in GHz
-freq_lower, freq_upper, freq_num = 500, 500, 1
+frequency = int(sys.argv[1])
+print("Frequency: " + str(frequency) + "GHz") # first argument after the script name; the frequency
 
 # The following 4 variables refer to sweeps over incident plane wave. These angles are with respect to the global
 # coordinate system. Symmetry can be used to make these sweeps less wide
 i_theta_lower, i_theta_upper, i_phi_lower, i_phi_upper = 90, 180, 0, 90
-i_theta_step = 15 # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
-i_phi_step = 15
+i_theta_step = 90 # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
+i_phi_step = 90
 
 # Define x and y directions of outgoing coordinate systems (vectors relative to global coordinate system)
 # x direction points outward from face. The z direction is automatic from the right-hand rule.
@@ -100,8 +102,23 @@ max_difference = 0.25
 hfss = Hfss(project=project_name, design=design_name, non_graphical=False)
 oDesktop = hfss.odesktop
 oProject = oDesktop.SetActiveProject(project_name)
+
+# Copy the old design into the copied design (needed so that different frequencies can be computed in parallel)
 oDesign = oProject.SetActiveDesign(design_name)
 oEditor = oDesign.SetActiveEditor("3D Modeler")
+oEditor.Copy(
+	[
+		"NAME:Selections",
+		"Selections:="		, feature_name
+	])
+new_name = f"{design_name}_{frequency}GHz"
+oProject.InsertDesign("HFSS", new_name, "HFSS Terminal Network", "")
+oDesign = oProject.SetActiveDesign(new_name)
+oEditor = oDesign.SetActiveEditor("3D Modeler")
+oEditor.Paste()
+
+hfss = Hfss(project=project_name, design=new_name, non_graphical=False)
+
 oEditor.SetModelUnits(
     [
         "NAME:Units Parameter",
@@ -440,14 +457,12 @@ def setup_plane_wave(plane_wave_face, i_theta_lower, i_theta_upper, i_phi_lower,
         name=plane_wave_name
     )
 
-def create_setup(frequency, max_delta_E, max_passes, previous_frequency):
+def create_setup(frequency, max_delta_E, max_passes):
     """
-    Create an HFSS simulation setup for a given frequency, including adaptive meshing 
-    and a parametric sweep over electric field polarization.
+    Create an HFSS simulation setup for a given frequency
 
     This function:
     - Creates a new solution setup for the specified frequency.
-    - If `previous_frequency` is provided, it attempts to import the adaptive mesh 
       from that frequency's setup to speed up convergence.
     - Adds a parametric sweep over the `Ephi` variable from 0 to 1 in steps of 1 
       (to sweep between phi and theta polarization).
@@ -456,61 +471,22 @@ def create_setup(frequency, max_delta_E, max_passes, previous_frequency):
         frequency (float): Frequency in GHz for this setup.
         max_delta_E (float): Maximum allowed change in electric field between adaptive passes (convergence criteria).
         max_passes (int): Maximum number of adaptive passes allowed for convergence.
-        previous_frequency (float or None): If given, mesh from this frequency will be reused via mesh import.
 
     Returns:
         None
 
     Notes:
-        - If mesh reuse fails, it gracefully falls back to a fresh adaptive mesh setup.
         - The parametric sweep is stored under a name like "E_phi_sweep_150GHz".
     """
     freq_str = f"{frequency}GHz"
     setup_name = get_setup_name(frequency)
 
-    # Case 1: first frequency — full adaptive mesh
-    if previous_frequency is None:
-        oModuleAnalysis.InsertSetup("HfssDriven", [
-            f"NAME:{setup_name}",
-            "Frequency:=", freq_str,
-            "MaxDeltaE:=", max_delta_E,
-            "MaximumPasses:=", max_passes
-        ])
-    # Case 2: Reuse mesh from previous frequency
-    else:
-        previous_setup_name = get_setup_name(previous_frequency)
-        try:
-            oModuleAnalysis.InsertSetup("HfssDriven", [
-                f"NAME:{setup_name}",
-                "Frequency:=", freq_str,
-                "MaxDeltaE:=", max_delta_E,
-                "MaximumPasses:=", max_passes,
-                [
-                    "NAME:MeshLink",
-                    "ImportMesh:=", True,
-                    "Project:=", "This Project*",
-                    "Product:=", "HFSS",
-                    "Design:=", "This Design*",
-                    "Soln:=", f"{previous_setup_name} : LastAdaptive",
-                    [
-                        "NAME:Params",
-                        "Ephi:=", "Ephi"
-                    ],
-                    "ForceSourceToSolve:=", False,
-                    "PreservePartnerSoln:=", False,
-                    "PathRelativeTo:=", "TargetProject",
-                    "ApplyMeshOp:=", False
-                ]
-            ])
-            print(f"Setup {setup_name} created from {previous_setup_name} mesh")
-        except Exception:
-            oModuleAnalysis.InsertSetup("HfssDriven", [
-                f"NAME:{setup_name}",
-                "Frequency:=", freq_str,
-                "MaxDeltaE:=", max_delta_E,
-                "MaximumPasses:=", max_passes
-            ])
-            f"Setup {setup_name} created with default mesh"
+    oModuleAnalysis.InsertSetup("HfssDriven", [
+        f"NAME:{setup_name}",
+        "Frequency:=", freq_str,
+        "MaxDeltaE:=", max_delta_E,
+        "MaximumPasses:=", max_passes
+    ])
 
     # Insert a parametric sweep over the two electric field polarizations
     parametric_setup_name = get_parametric_setup_name(frequency)
@@ -1538,41 +1514,6 @@ def read_hfss_far_field(filepath, rad_theta_step, rad_phi_step):
 
     return df
 
-def clear_analysis(frequency, sweep):
-    """
-    Cleans up HFSS project analysis data related to a given frequency by deleting excitations,
-    the far field radiation sphere, and previous refinement setups.
-
-    Specifically:
-    - Deletes all excitations.
-    - Deletes the far field radiation sphere setup corresponding to the given frequency.
-    - Disables the frequency sweep and parametric setups if the sweep type is 'discrete'.
-
-    Parameters:
-        frequency (float or int): Frequency value identifying the analysis to clear.
-        sweep (str): Type of frequency sweep; expected values include 'discrete' or others (e.g., 'adaptive').
-
-    Returns:
-        None
-    """
-    sphere_name = get_radiation_sphere_name(frequency)
-
-    oModuleBoundary.DeleteAllExcitations()
-
-    oModuleRad.DeleteSetup([sphere_name])
-    setup_name = get_setup_name(frequency)
-
-    # Disable the analysis/parametric setups if we are in a discrete sweep. If we are doing adaptive sweeps, the setups will
-    # already be disabled
-    if sweep == "discrete":
-        oModuleAnalysis.EditSetup(setup_name,
-                                  [
-                                      f"NAME:{setup_name}",
-                                      "IsEnabled:=", False,
-                                  ])
-        parametric_setup_name = get_parametric_setup_name(frequency)
-        oModuleParametric.EnableSetup(parametric_setup_name, False)
-
 def clear_simulation():
     """
     Clears existing simulation features and setups in the HFSS project to prepare for a fresh start.
@@ -1665,27 +1606,11 @@ def main():
     add_outgoing_power_to_calculator()
 
     if not import_from_existing_csv:
-        log_lower = np.log10(freq_lower)
-        log_upper = np.log10(freq_upper)
-        frequencies = np.logspace(log_lower, log_upper, freq_num)
-        frequencies = np.round(frequencies).astype(int)
-        print(f"Frequency list (logarithmic scale): {frequencies}")
-
-        # Previous frequency mesh is used for more efficient meshing of new frequency
-        previous_frequency = None
-
-        for i, frequency in enumerate(frequencies):
-            create_setup(frequency, max_delta_E, max_passes, previous_frequency)
-            setup_radiation(rad_params, frequency)
-            run_analysis(num_cores, max_delta_E, max_passes, plane_wave_face, Ei, output_file_location, i_theta_lower, i_theta_upper, i_phi_lower,
-                         i_phi_upper, frequency, i_theta_step, i_phi_step, rad_params, sweep, max_difference)
-
-            # Delete plane wave after each frequency, except for the last frequency. For discrete sweeps,
-            # this allows the user to inspect fields.
-            if i < len(frequencies) - 1:
-                clear_analysis(frequency, sweep)
-
-            previous_frequency = frequency
+        print(f"Frequency: {frequency}GHz")
+        create_setup(frequency, max_delta_E, max_passes)
+        setup_radiation(rad_params, frequency)
+        run_analysis(num_cores, max_delta_E, max_passes, plane_wave_face, Ei, output_file_location, i_theta_lower, i_theta_upper, i_phi_lower,
+                     i_phi_upper, frequency, i_theta_step, i_phi_step, rad_params, sweep, max_difference)
     else:
         # We use regex to find the Ephi and frequency from the file path
         parent_folder = os.path.basename(os.path.dirname(waveguide_data_csv))
@@ -1693,13 +1618,13 @@ def main():
         if not m:
             raise ValueError(f"Cannot parse frequency/Ephi from '{parent_folder}'")
 
-        frequency = int(m.group(1))
+        freq = int(m.group(1))
         E_phi = int(m.group(2))
 
         hfss["Ephi"] = E_phi
         setup_radiation(rad_params, frequency)
         run_analysis(num_cores, max_delta_E, max_passes, plane_wave_face, Ei, output_file_location, i_theta_lower,
-                     i_theta_upper, i_phi_lower, i_phi_upper, frequency, i_theta_step, i_phi_step, rad_params,
+                     i_theta_upper, i_phi_lower, i_phi_upper, freq, i_theta_step, i_phi_step, rad_params,
                      sweep, max_difference, True, E_phi, waveguide_data_csv,
                      far_field_data_csv)
 
@@ -1707,3 +1632,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
