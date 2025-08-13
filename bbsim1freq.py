@@ -6,10 +6,9 @@ Created on 03/20/2025
 """
 
 # Notes:
-# (1) The code expects an existing setup with all analysis and parametric setups deleted,
-# or a fresh layout. NOTE: due to an error, it is advisable to recreate (duplicate) the project each time ANSYS is launched,
-# and delete all analysis sweeps associated
-# (2) The code expects many parameters to be filled in regarding the layout
+# (1) The code takes in a command-line argument for the frequency.
+# (2) The code creates a copy of the base design for each frequency. If a mistake is made and the code needs to be
+# rerun for a frequency for a particular design, it is advisable to rename the original design due to a technicality in HFSS
 # (3) If is desired, it is possible to Keyboard Interrupt in the middle of a simulation and save to csv. Then,
 # it is possible to begin a new simulation with this existing data. 
 # (4) The output .csv files are large, so to use the data, import directly using pandas.
@@ -32,8 +31,11 @@ from collections import defaultdict
 from typing import Optional
 
 #%%
+frequency = int(sys.argv[1]) # Frequency [GHz] (command-line argument)
+print("Frequency: " + str(frequency) + "GHz") # first argument after the script name; the frequency
 c = constants.c # Speed of light
 mu_0 = constants.mu_0 # permeability of free space
+
 project_name = "InfParallelPlate" # Name of the HFSS project
 design_name = "check" # Name of the HFSS design
 feature_name = "waveguide" # Name of the crack/feature/waveguide
@@ -60,9 +62,6 @@ outgoing_face_id = 7
 manual_field = True
 outgoing_face_boundary = None # Or specify ([x1, y1, z1], [x2, y2, z2]), e.g.([0, -5, 1], [0.05, 5, 1]) Boundary of the outgoing face (relative to global CS)
 outgoing_face_field_resolution = ["0.001mm", "0.1mm", "0mm"] # Resolution in outputting the electric field at the outgoing face
-
-frequency = int(sys.argv[1]) # Frequency [GHz] (command line argument)
-print("Frequency: " + str(frequency) + "GHz") # first argument after the script name; the frequency
 
 # The following 4 variables refer to sweeps over incident plane wave. These angles are with respect to the global
 # coordinate system. Symmetry can be used to make these sweeps less wide
