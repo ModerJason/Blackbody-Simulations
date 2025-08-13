@@ -56,11 +56,12 @@ ingoing_face_id = 8 # Check face id's of the plane wave ingoing face and outgoin
 outgoing_face_id = 7
 
 # Whether to specify manually the boundary and resolution of the outgoing face. If manual_field is set to False,
-# HFSS will infer the appropriate sampling resolution, but it is coarse. If manual_field is set to True and outgoing_face_boundary is set to None,
-# the bounding region for the outgoing face is inferred, but it only works for rectilinear facess.
-# outgoing_face_boundary can also be manually specified for non-rectilinear geometries (coordinates relative to outgoing CS).
+# HFSS will infer the appropriate sampling resolution, but it is coarse. The coordinates are relative to the global CS.
+# If manual_field is set to True, the coordinates are relative to outgoing CS. If outgoing_face_boundary is set to None,
+# the bounding region for the outgoing face is inferred, but it only works for rectilinear faces.
+# outgoing_face_boundary can also be manually specified for non-rectilinear geometries.
 manual_field = True
-outgoing_face_boundary = None # Or specify ([x1, y1, z1], [x2, y2, z2]), e.g.([0, -5, -0.025], [0, 5, 0.025]) Boundary of the outgoing face (relative to outgoing CS)
+outgoing_face_boundary = None # Or specify ([x1, y1, z1], [x2, y2, z2]), e.g.([0, -5, -0.025], [0, 5, 0.025]) Boundary of the outgoing face
 outgoing_face_field_resolution = ["0mm", "0.1mm", "0.001mm"] # Resolution in outputting the electric field at the outgoing face
 
 # The following 4 variables refer to sweeps over incident plane wave. These angles are with respect to the global
@@ -1185,6 +1186,7 @@ def extract_waveguide_data(frequency, Ei, plane_wave_face, i_theta_lower, i_thet
             range_min = ['{}{}'.format(i, unit) for i in outgoing_face_boundary[0]]
             range_max = ['{}{}'.format(i, unit) for i in outgoing_face_boundary[1]]
         else:
+            # Convert the vertices from the GLOBAL CS to the OUTGOING CS
             outgoing_face = hfss.modeler.get_face_by_id(outgoing_face_id)
             outgoing_cs_origin = np.array(outgoing_face.center)
             
