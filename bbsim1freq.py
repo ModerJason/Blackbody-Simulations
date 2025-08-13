@@ -37,7 +37,7 @@ c = constants.c # Speed of light
 mu_0 = constants.mu_0 # permeability of free space
 
 project_name = "InfParallelPlate" # Name of the HFSS project
-design_name = "check" # Name of the HFSS design
+design_name = "attempt2" # Name of the HFSS design
 feature_name = "waveguide" # Name of the crack/feature/waveguide
 repo_root = os.path.dirname(os.path.abspath(__file__))
 output_file_location = os.path.join(repo_root, "HFSSSimData") # The folder to output all data files
@@ -57,11 +57,11 @@ outgoing_face_id = 7
 
 # Whether to specify manually the boundary and resolution of the outgoing face. If manual_field is set to False,
 # HFSS will infer the appropriate sampling resolution, but it is coarse. If manual_field is set to True and outgoing_face_boundary is set to None,
-# the bounding region for the outgoing face is inferred, but it only works for rectilinear faces aligned with the 
-# coordinate axis. outgoing_face_boundary can also be manually specified for non-rectilinear geometries (coordinates relative to global CS).
+# the bounding region for the outgoing face is inferred, but it only works for rectilinear facess.
+# outgoing_face_boundary can also be manually specified for non-rectilinear geometries (coordinates relative to outgoing CS).
 manual_field = True
-outgoing_face_boundary = None # Or specify ([x1, y1, z1], [x2, y2, z2]), e.g.([0, -5, 1], [0.05, 5, 1]) Boundary of the outgoing face (relative to global CS)
-outgoing_face_field_resolution = ["0.001mm", "0.1mm", "0mm"] # Resolution in outputting the electric field at the outgoing face
+outgoing_face_boundary = None # Or specify ([x1, y1, z1], [x2, y2, z2]), e.g.([0, -5, -0.025], [0, 5, 0.025]) Boundary of the outgoing face (relative to outgoing CS)
+outgoing_face_field_resolution = ["0mm", "0.1mm", "0.001mm"] # Resolution in outputting the electric field at the outgoing face
 
 # The following 4 variables refer to sweeps over incident plane wave. These angles are with respect to the global
 # coordinate system. Symmetry can be used to make these sweeps less wide
@@ -1185,14 +1185,31 @@ def extract_waveguide_data(frequency, Ei, plane_wave_face, i_theta_lower, i_thet
             range_min = ['{}{}'.format(i, unit) for i in outgoing_face_boundary[0]]
             range_max = ['{}{}'.format(i, unit) for i in outgoing_face_boundary[1]]
         else:
+            outgoing_face = hfss.modeler.get_face_by_id(outgoing_face_id)
+            outgoing_cs_origin = np.array(outgoing_face.center)
+            
+            x_axis_new = np.array(outgoing_face_cs_x)  
+            y_axis_new = np.array(outgoing_face_cs_y)
+            z_axis_new = np.cross(x_axis_new, y_axis_new)
+            
+            # Transformation matrix: UDCS -> global
+            M = np.column_stack((x_axis_new, y_axis_new, z_axis_new))
+            Minv = np.linalg.inv(M)  # global -> UDCS
+            
+            # Get vertex positions in GLOBAL CS
             vertex_ids = oEditor.GetVertexIDsFromFace(outgoing_face_id)
             vertex_positions = [oEditor.GetVertexPosition(i) for i in vertex_ids]
-            x, y, z = zip(*vertex_positions)
-            x = [float(i) for i in x]
-            y = [float(i) for i in y]
-            z = [float(i) for i in z]
-            range_min = ['{}{}'.format(i, unit) for i in [min(x), min(y), min(z)]]
-            range_max = ['{}{}'.format(i, unit) for i in [max(x), max(y), max(z)]]
+            
+            # Convert to floats and transform to UDCS using outgoing_cs_origin as the center
+            vertex_positions_udcs = [
+                Minv @ (np.array([float(vx), float(vy), float(vz)]) - outgoing_cs_origin)
+                for vx, vy, vz in vertex_positions
+            ]
+            
+            # Find bounding box in UDCS
+            x_udcs, y_udcs, z_udcs = zip(*vertex_positions_udcs)
+            range_min = ['{}{}'.format(i, unit) for i in [min(x_udcs), min(y_udcs), min(z_udcs)]]
+            range_max = ['{}{}'.format(i, unit) for i in [max(x_udcs), max(y_udcs), max(z_udcs)]]
     else:
         oModuleFields.CalcStack("clear")
         oModuleFields.EnterQty("E")
@@ -1207,11 +1224,13 @@ def extract_waveguide_data(frequency, Ei, plane_wave_face, i_theta_lower, i_thet
 
             t_export = time.perf_counter()
         
-            if(manual_field):    
+            if(manual_field):  
+                # If the grid is manually specified, it should be specified with respect to the outgoing CS
                 oModuleFields.ExportOnGrid(exit_field_path, range_min, range_max, outgoing_face_field_resolution, setup_name, ["Ephi:=", E_phi, "Freq:=", freq_str, "IWavePhi:=", i_phi_str,
-    		    "IWaveTheta:=", i_theta_str, "Phase:=", "0deg"], ["NAME:ExportOption", "IncludePtInOutput:=", True, "RefCSName:=", "Global", "PtInSI:=", True, "FieldInRefCS:=", False], "Cartesian", 
+    		    "IWaveTheta:=", i_theta_str, "Phase:=", "0deg"], ["NAME:ExportOption", "IncludePtInOutput:=", True, "RefCSName:=", "outgoing_cs", "PtInSI:=", True, "FieldInRefCS:=", False], "Cartesian", 
             ["0mm","0mm","0mm"], False)
             else:
+                # If no grid is specified, HFSS automatically writes with respect to the global coordinate system
                 oModuleFields.CalculatorWrite(exit_field_path,
                     ["Solution:=", setup_name],
                     ["Ephi:=", E_phi, "Freq:=", freq_str, "IWavePhi:=", i_phi_str, "IWaveTheta:=", i_theta_str])
