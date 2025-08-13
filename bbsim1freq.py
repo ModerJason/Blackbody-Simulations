@@ -35,7 +35,7 @@ from typing import Optional
 c = constants.c # Speed of light
 mu_0 = constants.mu_0 # permeability of free space
 project_name = "InfParallelPlate" # Name of the HFSS project
-design_name = "faith" # Name of the HFSS design
+design_name = "check" # Name of the HFSS design
 feature_name = "waveguide" # Name of the crack/feature/waveguide
 repo_root = os.path.dirname(os.path.abspath(__file__))
 output_file_location = os.path.join(repo_root, "HFSSSimData") # The folder to output all data files
@@ -56,20 +56,19 @@ outgoing_face_id = 7
 # Whether to specify manually the boundary and resolution of the outgoing face. If manual_field is set to False,
 # HFSS will infer the appropriate sampling resolution, but it is coarse. If manual_field is set to True and outgoing_face_boundary is set to None,
 # the bounding region for the outgoing face is inferred, but it only works for rectilinear faces aligned with the 
-# coordinate axis. outgoing_face_boundary can also be manually specified for non-rectilinear geometries.
+# coordinate axis. outgoing_face_boundary can also be manually specified for non-rectilinear geometries (coordinates relative to global CS).
 manual_field = True
 outgoing_face_boundary = None # Or specify ([x1, y1, z1], [x2, y2, z2]), e.g.([0, -5, 1], [0.05, 5, 1]) Boundary of the outgoing face (relative to global CS)
 outgoing_face_field_resolution = ["0.001mm", "0.1mm", "0mm"] # Resolution in outputting the electric field at the outgoing face
 
-# Frequencies in GHz
-frequency = int(sys.argv[1])
+frequency = int(sys.argv[1]) # Frequency [GHz] (command line argument)
 print("Frequency: " + str(frequency) + "GHz") # first argument after the script name; the frequency
 
 # The following 4 variables refer to sweeps over incident plane wave. These angles are with respect to the global
 # coordinate system. Symmetry can be used to make these sweeps less wide
 i_theta_lower, i_theta_upper, i_phi_lower, i_phi_upper = 90, 180, 0, 90
-i_theta_step = 90 # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
-i_phi_step = 90
+i_theta_step = 15 # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
+i_phi_step = 15
 
 # Define x and y directions of outgoing coordinate systems (vectors relative to global coordinate system)
 # x direction points outward from face. The z direction is automatic from the right-hand rule.
@@ -94,7 +93,7 @@ rad_params = rad_theta_lower, rad_theta_upper, rad_phi_lower, rad_phi_upper, a, 
 
 # Adaptive or discrete sweep. For adaptive sweep, max difference is maximum fractional difference allowed between
 # any two points in the sweep, relative to the total maximum value of the outgoing power.
-sweep = "discrete"
+sweep = "adaptive"
 max_difference = 0.25
 
 #%%
@@ -103,7 +102,7 @@ hfss = Hfss(project=project_name, design=design_name, non_graphical=False)
 oDesktop = hfss.odesktop
 oProject = oDesktop.SetActiveProject(project_name)
 
-# Copy the old design into the copied design (needed so that different frequencies can be computed in parallel)
+# Copy the old design into the copied design (needed so that different frequencies can be computed in parallel with the HPC)
 oDesign = oProject.SetActiveDesign(design_name)
 oEditor = oDesign.SetActiveEditor("3D Modeler")
 oEditor.Copy(
@@ -134,6 +133,9 @@ oModuleBoundary = oDesign.GetModule("BoundarySetup")
 oModuleFields = oDesign.GetModule("FieldsReporter")
 oModuleRad = oDesign.GetModule("RadField")
 
+# Clear the simulation of existing radiation boundaries and plane wave excitations
+oModuleBoundary.DeleteAllBoundaries()
+oModuleBoundary.DeleteAllExcitations()
 #%%
 
 def initialize_variables(Ei):
@@ -607,7 +609,6 @@ def run_analysis(num_cores, max_delta_E, max_passes, plane_wave_face, Ei, output
 
     if sweep == "adaptive" or sweep == "zoom":
         # Disable analysis and parametric setup before adaptive sweep begins, and insert new refinement setup.
-        # We do not delete the setups because we will use them for better meshing for future frequencies
         parametric_setup_name = get_parametric_setup_name(frequency)
         try:
             oModuleParametric.EnableSetup(parametric_setup_name, False)
@@ -1513,83 +1514,18 @@ def read_hfss_far_field(filepath, rad_theta_step, rad_phi_step):
     })
 
     return df
-
-def clear_simulation():
-    """
-    Clears existing simulation features and setups in the HFSS project to prepare for a fresh start.
-
-    The function performs the following cleanup actions:
-    - Deletes any existing selection named 'outgoing' (e.g., outgoing face list).
-    - Deletes any existing local coordinate system named 'outgoing_cs'.
-    - Deletes all analysis setups and parametric setups.
-    - Attempts to revert mesh to the initial state.
-    - Deletes all existing boundaries and excitations.
-    - Deletes all far field radiation sphere setups of type "Infinite Sphere".
-
-    This function is useful for resetting the HFSS environment before creating new simulation configurations.
-
-    Returns:
-        None
-    """
-    
-    # Delete existing outgoing face list
-    try:
-        oEditor.Delete([
-            "NAME:Selections",
-            "Selections:=", "outgoing"
-        ])
-    except Exception:
-        pass
-
-    # Delete existing local coordinate system
-    try:
-        oEditor.Delete([
-            "NAME:Selections",
-            "Selections:=", "outgoing_cs"
-        ])
-    except Exception:
-        pass
-
-    # Delete all existing setups and parametric setups. Note: these calls require
-    # the setups to be enabled in HFSS; it may be necessary to delete previous analysis sweeps
-    for setup_name in oModuleAnalysis.GetSetups():
-        oModuleAnalysis.DeleteSetups([setup_name])
-    for parametric_setup_name in oModuleParametric.GetSetupNames():
-        oModuleParametric.DeleteSetups([parametric_setup_name])
-
-    # Revert back to initial mesh for consistency
-    try:
-        oModuleAnalysis.RevertAllToInitial()
-    except Exception:
-        pass
-
-    # Delete existing radiation boundaries and plane wave excitations
-    oModuleBoundary.DeleteAllBoundaries()
-    oModuleBoundary.DeleteAllExcitations()
-
-    # Delete far field infinite spheres (radiation)
-    for sphere_name in oModuleRad.GetSetupNames("Infinite Sphere"):
-        oModuleRad.DeleteSetup([sphere_name])
-
-    
-
 #%%
 def main():
     """
     Main entry point for the waveguide simulation workflow.
 
     This function orchestrates the entire simulation process, including:
-    - Clearing previous simulation features and setups.
     - Initializing key variables and geometry references.
     - Creating local coordinate systems and adding necessary calculator expressions.
-    - Generating a list of frequencies (logarithmically spaced) or loading from existing CSV data.
-    - For each frequency:
-        - Creating HFSS simulation setup with adaptive meshing.
+    - For the given frequency:
+        - Creating HFSS simulation setup
         - Setting up far field radiation boundaries.
         - Running the analysis including field extractions and data exports.
-        - Clearing excitations and radiation spheres after each frequency (except the last for discrete sweeps).
-    - If importing from existing CSVs, parses frequency and Ephi values from folder names and runs analysis accordingly.
-    - Releases the HFSS desktop session while optionally keeping projects open.
 
     This function serves as the high-level control flow to execute the full simulation, data extraction, 
     and cleanup process.
@@ -1599,7 +1535,6 @@ def main():
     """
 
     # Simulation begins here
-    clear_simulation()
     initialize_variables(Ei)
     plane_wave_face, outgoing_face = get_faces_from_face_id(ingoing_face_id, outgoing_face_id)
     create_local_coordinate_system(outgoing_face, outgoing_face_cs_x, outgoing_face_cs_y)
