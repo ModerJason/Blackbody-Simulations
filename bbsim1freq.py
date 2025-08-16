@@ -37,7 +37,7 @@ c = constants.c # Speed of light
 mu_0 = constants.mu_0 # permeability of free space
 
 project_name = "InfParallelPlate" # Name of the HFSS project
-design_name = "attempt2" # Name of the HFSS design
+design_name = "interpolate" # Name of the HFSS design
 feature_name = "waveguide" # Name of the crack/feature/waveguide
 repo_root = os.path.dirname(os.path.abspath(__file__))
 output_file_location = os.path.join(repo_root, "HFSSSimData") # The folder to output all data files
@@ -61,7 +61,7 @@ outgoing_face_id = 7
 # the bounding region for the outgoing face is inferred, but it only works for rectilinear faces.
 # outgoing_face_boundary can also be manually specified for non-rectilinear geometries.
 manual_field = True
-outgoing_face_boundary = None # Or specify ([x1, y1, z1], [x2, y2, z2]), e.g.([0, -5, -0.025], [0, 5, 0.025]) Boundary of the outgoing face
+outgoing_face_boundary = None # Or specify ([x1, y1, z1], [x2, y2, z2]), e.g.([0, -5, -0.025], [0, 5, 0.025]) Boundary of the outgoing face (mm)
 outgoing_face_field_resolution = ["0mm", "0.1mm", "0.001mm"] # Resolution in outputting the electric field at the outgoing face
 
 # The following 4 variables refer to sweeps over incident plane wave. These angles are with respect to the global
