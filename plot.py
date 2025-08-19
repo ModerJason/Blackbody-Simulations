@@ -256,8 +256,8 @@ def plot_far_field_by_incoming_angle(csv_path,
 
     plt.tight_layout()
 #%%
-waveguide_data = "C:/Users/Jason Wang/spyder/projects/Blackbody/Blackbody-Simulations/HFSSSimData/InfParallelPlate_attempt_500GHz_Ephi=0/waveguide.csv"
-far_field_data = "C:/Users/Jason Wang/spyder/projects/Blackbody/Blackbody-Simulations/HFSSSimData/InfParallelPlate_attempt_500GHz_Ephi=0/far_field.csv"
+waveguide_data = "C:/Users/Jason Wang/spyder/projects/Blackbody/Blackbody-Simulations/HFSSSimData/InfParallelPlate_conductivity5_500GHz_Ephi=0/waveguide.csv"
+far_field_data = "C:/Users/Jason Wang/spyder/projects/Blackbody/Blackbody-Simulations/HFSSSimData/InfParallelPlate_conductivity5_500GHz_Ephi=0/far_field.csv"
 #%%
 pivot = load_and_pivot(waveguide_data)
 
@@ -271,8 +271,8 @@ plot_exit_field_by_incoming_angle(csv_path=waveguide_data, theta_in =180, phi_in
 #%%
 plot_far_field_by_incoming_angle_fixed(
     csv_path=far_field_data,
-    theta_in_list=[180, 165],
-    phi_in_list=[0, 15],
+    theta_in_list=[180],
+    phi_in_list=[0],
     fixed_param=r"$\theta_{out}$",
     fixed_value=90
 )

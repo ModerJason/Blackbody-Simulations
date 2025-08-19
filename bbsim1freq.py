@@ -37,7 +37,7 @@ c = constants.c # Speed of light
 mu_0 = constants.mu_0 # permeability of free space
 
 project_name = "InfParallelPlate" # Name of the HFSS project
-design_name = "interpolate" # Name of the HFSS design
+design_name = "conductivity5" # Name of the HFSS design
 feature_name = "waveguide" # Name of the crack/feature/waveguide
 repo_root = os.path.dirname(os.path.abspath(__file__))
 output_file_location = os.path.join(repo_root, "HFSSSimData") # The folder to output all data files
@@ -54,6 +54,7 @@ num_cores = 4
 
 ingoing_face_id = 8 # Check face id's of the plane wave ingoing face and outgoing face by clicking select object/by name
 outgoing_face_id = 7
+conductivity = None # Default to infinite, otherwise specify in [S/m], e.g. 5000000000
 
 # Whether to specify manually the boundary and resolution of the outgoing face. If manual_field is set to False,
 # HFSS will infer the appropriate sampling resolution, but it is coarse. The coordinates are relative to the global CS.
@@ -67,8 +68,8 @@ outgoing_face_field_resolution = ["0mm", "0.1mm", "0.001mm"] # Resolution in out
 # The following 4 variables refer to sweeps over incident plane wave. These angles are with respect to the global
 # coordinate system. Symmetry can be used to make these sweeps less wide
 i_theta_lower, i_theta_upper, i_phi_lower, i_phi_upper = 90, 180, 0, 90
-i_theta_step = 15 # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
-i_phi_step = 15
+i_theta_step = 90 # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
+i_phi_step = 90
 
 # Define x and y directions of outgoing coordinate systems (vectors relative to global coordinate system)
 # x direction points outward from face. The z direction is automatic from the right-hand rule.
@@ -93,7 +94,7 @@ rad_params = rad_theta_lower, rad_theta_upper, rad_phi_lower, rad_phi_upper, a, 
 
 # Adaptive or discrete sweep. For adaptive sweep, max difference is maximum fractional difference allowed between
 # any two points in the sweep, relative to the total maximum value of the outgoing power.
-sweep = "adaptive"
+sweep = "discrete"
 max_difference = 0.25
 
 #%%
@@ -182,7 +183,35 @@ def get_faces_from_face_id(ingoing_face_id, outgoing_face_id):
         raise RuntimeError(f"Error retrieving 'ingoing' facelist: {e}")
     hfss.assign_radiation_boundary_to_faces(assignment=[plane_wave_face.id], name="rbin")
     hfss.assign_radiation_boundary_to_faces(assignment=[outgoing_face.id], name="rbout")
+    
     return plane_wave_face, outgoing_face
+
+def set_conductivity(feature_name, conductivity, ingoing_face_id, outgoing_face_id):
+    if conductivity is None:
+        pass
+    else:
+        # Get all faces of the feature
+        face_ids = list(map(int, oEditor.GetFaceIDs(feature_name)))
+        
+        # Remove the ingoing and outgoing faces
+        remaining_face_ids = [fid for fid in face_ids if fid not in [ingoing_face_id, outgoing_face_id]]
+        
+        # Apply conductivity to the remaining faces
+        if remaining_face_ids:
+            oModuleBoundary.AssignFiniteCond(
+                [
+                    "NAME:FiniteCond1",
+                    "Faces:=", remaining_face_ids,
+                    "UseMaterial:=", False,
+                    "Conductivity:=", str(conductivity),
+                    "Permeability:=", "1",
+                    "UseThickness:=", False,
+                    "Roughness:=", "0um",
+                    "InfGroundPlane:=", False,
+                    "IsTwoSided:=", False,
+                    "IsInternal:=", True
+                ]
+            )
 
 def create_local_coordinate_system(outgoing_face, outgoing_face_cs_x, outgoing_face_cs_y):
     """
@@ -1557,6 +1586,7 @@ def main():
     # Simulation begins here
     initialize_variables(Ei)
     plane_wave_face, outgoing_face = get_faces_from_face_id(ingoing_face_id, outgoing_face_id)
+    set_conductivity(feature_name, conductivity, ingoing_face_id, outgoing_face_id)
     create_local_coordinate_system(outgoing_face, outgoing_face_cs_x, outgoing_face_cs_y)
     add_outgoing_power_to_calculator()
 
