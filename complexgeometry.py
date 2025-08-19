@@ -37,31 +37,31 @@ c = constants.c # Speed of light
 mu_0 = constants.mu_0 # permeability of free space
 
 project_name = "InfParallelPlate" # Name of the HFSS project
-design_name = "retesting" # Name of the HFSS design
-feature_name = "waveguide" # Name of the crack/feature/waveguide
+design_name = "infraredmitigation" # Name of the HFSS design
+feature_name = "waveguide_1" # Name of the crack/feature/waveguide
 repo_root = os.path.dirname(os.path.abspath(__file__))
 output_file_location = os.path.join(repo_root, "HFSSSimData") # The folder to output all data files
 os.makedirs(output_file_location, exist_ok=True)
 
-import_from_existing_csv = False # Whether to import waveguide and far_field_data from existing CSV (default is false)
-waveguide_data_csv = os.path.join(output_file_location, "InfParallelPlate_retesting_500GHz_Ephi=0/waveguide.csv")
-far_field_data_csv = os.path.join(output_file_location, "InfParallelPlate_retesting_500GHz_Ephi=0/far_field.csv")
+import_from_existing_csv = True # Whether to import waveguide and far_field_data from existing CSV (default is false)
+waveguide_data_csv = os.path.join(output_file_location, "InfParallelPlate_infraredmitigation_500GHz_Ephi=0/waveguide.csv")
+far_field_data_csv = os.path.join(output_file_location, "InfParallelPlate_infraredmitigation_500GHz_Ephi=0/far_field.csv")
 
 Ei = 1 # strength of incident electric field [V/m]
 max_delta_E = 0.02 # HFSS analysis sweep parameter
 max_passes = 10 # HFSS analysis sweep parameter
 num_cores = 4
 
-ingoing_face_id = 8 # Check face id's of the plane wave ingoing face and outgoing face by clicking select object/by name
-outgoing_face_id = 7
+ingoing_face_id = 7 # Check face id's of the plane wave ingoing face and outgoing face by clicking select object/by name
+outgoing_face_id = 180
 conductivity = None # Default to infinite, otherwise specify in [S/m], e.g. 5000000000
 
 # Define x and y directions of outgoing coordinate systems (vectors relative to global coordinate system)
 # x direction points outward from face. The z direction is automatic from the right-hand rule.
 # It is helpful to redefine a coordinate system so that the theta and phi sweep correspond to sweeps corresponding
 # to the two length scales. The 4 angular variables refer to sweeps over the far field radiation, with respect to the user-defined CS
-outgoing_face_cs_x = [0, 0, 1]
-outgoing_face_cs_y = [0, 1, 0]
+outgoing_face_cs_x = [0, 0, -1]
+outgoing_face_cs_y = [0, -1, 0]
 rad_theta_lower, rad_theta_upper, rad_phi_lower, rad_phi_upper = 0, 180, -90, 90
 
 # Whether to specify manually the boundary and resolution of the outgoing face. If manual_field is set to False,
@@ -75,12 +75,12 @@ outgoing_face_field_resolution = ["0mm", "0.1mm", "0.001mm"] # Resolution in out
 
 # The following 4 variables refer to sweeps over incident plane wave. These angles are with respect to the global
 # coordinate system. Symmetry can be used to make these sweeps less wide
-i_theta_lower, i_theta_upper, i_phi_lower, i_phi_upper = 90, 180, 0, 90
+i_theta_lower, i_theta_upper, i_phi_lower, i_phi_upper = 0, 90, 0, 90
 i_theta_step = 15 # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
 i_phi_step = 15
 
 a = 10 # length scale of the dimension coinciding with the sweep over phi [mm]
-b = 0.05 # length scale of the dimension coinciding with the sweep over theta [mm]
+b = 0.02 # length scale of the dimension coinciding with the sweep over theta [mm]
 fineness = 10 #1/fineness is the fraction of lambda/a swept over each radiation step in theta and phi
 
 # Maximum coarseness is the maximum coarseness of the angular sweeps, in degrees.
@@ -94,7 +94,7 @@ rad_params = rad_theta_lower, rad_theta_upper, rad_phi_lower, rad_phi_upper, a, 
 
 # Adaptive or discrete sweep. For adaptive sweep, max difference is maximum fractional difference allowed between
 # any two points in the sweep, relative to the total maximum value of the outgoing power.
-sweep = "discrete"
+sweep = "adaptive"
 max_difference = 0.25
 
 #%%
@@ -105,7 +105,6 @@ oProject = oDesktop.SetActiveProject(project_name)
 oDesign = oProject.SetActiveDesign(design_name)
 oEditor = oDesign.SetActiveEditor("3D Modeler")
 
-# Get ingoing and outgoing face positions to be used later
 ingoing_face = hfss.modeler.get_face_by_id(ingoing_face_id)
 outgoing_face = hfss.modeler.get_face_by_id(outgoing_face_id)
 ingoing_face_center = ingoing_face.center
@@ -113,8 +112,6 @@ outgoing_face_center = outgoing_face.center
 
 new_name = f"{design_name}_{frequency}GHz"
 refine_name = f"refined_{design_name}_{frequency}GHz"
-
-# Create a copy of the geometry in a new design, labeling it appropriately
 if not import_from_existing_csv:
     oEditor.Copy(
     	[
@@ -187,7 +184,7 @@ def get_faces_from_face_id(ingoing_face_id, outgoing_face_id):
     Parameters:
         ingoing_face_id (int): The ID of the face where the incident plane wave enters the structure.
         outgoing_face_id (int): The ID of the face from which waves exit the structure.
-
+)
     Returns:
         tuple: A tuple (plane_wave_face, outgoing_face), where each element is a Face object from the HFSS model.
 
