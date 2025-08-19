@@ -37,7 +37,7 @@ c = constants.c # Speed of light
 mu_0 = constants.mu_0 # permeability of free space
 
 project_name = "InfParallelPlate" # Name of the HFSS project
-design_name = "conductivity5" # Name of the HFSS design
+design_name = "retest" # Name of the HFSS design
 feature_name = "waveguide" # Name of the crack/feature/waveguide
 repo_root = os.path.dirname(os.path.abspath(__file__))
 output_file_location = os.path.join(repo_root, "HFSSSimData") # The folder to output all data files
@@ -56,6 +56,14 @@ ingoing_face_id = 8 # Check face id's of the plane wave ingoing face and outgoin
 outgoing_face_id = 7
 conductivity = None # Default to infinite, otherwise specify in [S/m], e.g. 5000000000
 
+# Define x and y directions of outgoing coordinate systems (vectors relative to global coordinate system)
+# x direction points outward from face. The z direction is automatic from the right-hand rule.
+# It is helpful to redefine a coordinate system so that the theta and phi sweep correspond to sweeps corresponding
+# to the two length scales. The 4 angular variables refer to sweeps over the far field radiation, with respect to the user-defined CS
+outgoing_face_cs_x = [0, 0, 1]
+outgoing_face_cs_y = [0, 1, 0]
+rad_theta_lower, rad_theta_upper, rad_phi_lower, rad_phi_upper = 0, 180, -90, 90
+
 # Whether to specify manually the boundary and resolution of the outgoing face. If manual_field is set to False,
 # HFSS will infer the appropriate sampling resolution, but it is coarse. The coordinates are relative to the global CS.
 # If manual_field is set to True, the coordinates are relative to outgoing CS. If outgoing_face_boundary is set to None,
@@ -70,14 +78,6 @@ outgoing_face_field_resolution = ["0mm", "0.1mm", "0.001mm"] # Resolution in out
 i_theta_lower, i_theta_upper, i_phi_lower, i_phi_upper = 90, 180, 0, 90
 i_theta_step = 90 # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
 i_phi_step = 90
-
-# Define x and y directions of outgoing coordinate systems (vectors relative to global coordinate system)
-# x direction points outward from face. The z direction is automatic from the right-hand rule.
-# It is helpful to redefine a coordinate system so that the theta and phi sweep correspond to sweeps corresponding
-# to the two length scales. The 4 angular variables refer to sweeps over the far field radiation, with respect to the user-defined CS
-outgoing_face_cs_x = [0, 0, 1]
-outgoing_face_cs_y = [0, 1, 0]
-rad_theta_lower, rad_theta_upper, rad_phi_lower, rad_phi_upper = 0, 180, -90, 90
 
 a = 10 # length scale of the dimension coinciding with the sweep over phi [mm]
 b = 0.05 # length scale of the dimension coinciding with the sweep over theta [mm]
@@ -106,6 +106,12 @@ oProject = oDesktop.SetActiveProject(project_name)
 # Copy the old design into the copied design (needed so that different frequencies can be computed in parallel with the HPC)
 oDesign = oProject.SetActiveDesign(design_name)
 oEditor = oDesign.SetActiveEditor("3D Modeler")
+
+ingoing_face = hfss.modeler.get_face_by_id(ingoing_face_id)
+outgoing_face = hfss.modeler.get_face_by_id(outgoing_face_id)
+ingoing_face_center = ingoing_face.center
+outgoing_face_center = outgoing_face.center
+
 oEditor.Copy(
 	[
 		"NAME:Selections",
@@ -118,6 +124,10 @@ oEditor = oDesign.SetActiveEditor("3D Modeler")
 oEditor.Paste()
 
 hfss = Hfss(project=project_name, design=new_name, non_graphical=False)
+
+# Hfss sometimes renames the face ids after copying the geometry into a new design, so get the new ids
+ingoing_face_id = hfss.modeler.get_faceid_from_position(ingoing_face_center)
+outgoing_face_id = hfss.modeler.get_faceid_from_position(outgoing_face_center)
 
 oEditor.SetModelUnits(
     [
