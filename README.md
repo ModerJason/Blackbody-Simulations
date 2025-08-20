@@ -17,7 +17,7 @@ For a guide on usage, see [here](https://github.com/ModerJason/Blackbody-Simulat
 
 These results will later integrate with Geant4 open-space photon simulations for an end-to-end model.
 
-For more details on analytical calculations, validation for HFSS simulations, and plots, see [here](https://github.com/ModerJason/Blackbody-Simulations/blob/main/Blackbody_Simulations_Report.pdf).
+For more details on analytical calculations, validation for HFSS simulations, and plots, see [here](https://github.com/ModerJason/Blackbody-Simulations/blob/main/Blackbody%20Simulation%20Report.pdf).
 
 **Requirements:**  
 - ANSYS HFSS 2023 R2+  
