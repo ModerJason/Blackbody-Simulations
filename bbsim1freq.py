@@ -12,7 +12,8 @@ Created on 03/20/2025
 # (3) If is desired, it is possible to Keyboard Interrupt in the middle of a simulation and save to csv. Then,
 # it is possible to begin a new simulation with this existing data. 
 # (4) The output .csv files are large, so to use the data, import directly using pandas.
-# (5) Make sure there are no additional variables defined! This can lead to errors in exporting far field data due to a technicality
+# (5) Make sure there are no additional variables defined in the HFSS GUI! This can lead to errors in exporting far field data due
+# to a technicality
 
 # Packages: pyaedt, scipy, pandas, numpy, seaborn (for plotting)
 
@@ -105,7 +106,10 @@ oProject = oDesktop.SetActiveProject(project_name)
 oDesign = oProject.SetActiveDesign(design_name)
 oEditor = oDesign.SetActiveEditor("3D Modeler")
 
-# Get ingoing and outgoing face positions to be used later
+# For each frequency, a copy of the existing geometry is made, but HFSS sometimes renames
+# face ids when copying a geometry from one design to another. Thus we ensure that the
+# correct face id is acquired by checking the position of the face and finding the
+# face with the same position in the copied design
 ingoing_face = hfss.modeler.get_face_by_id(ingoing_face_id)
 outgoing_face = hfss.modeler.get_face_by_id(outgoing_face_id)
 ingoing_face_center = ingoing_face.center
@@ -190,9 +194,6 @@ def get_faces_from_face_id(ingoing_face_id, outgoing_face_id):
 
     Returns:
         tuple: A tuple (plane_wave_face, outgoing_face), where each element is a Face object from the HFSS model.
-
-    Raises:
-        RuntimeError: If either face cannot be retrieved or assigned correctly.
     """
     try:
         outgoing_face = hfss.modeler.get_face_by_id(outgoing_face_id)
@@ -210,6 +211,22 @@ def get_faces_from_face_id(ingoing_face_id, outgoing_face_id):
     return plane_wave_face, outgoing_face
 
 def set_conductivity(feature_name, conductivity, ingoing_face_id, outgoing_face_id):
+    """
+    Assign a finite conductivity boundary condition to all faces of a given geometry 
+    feature in HFSS, excluding the specified ingoing and outgoing faces.
+
+    Parameters
+    ----------
+    feature_name : str
+        The name of the 3D object/feature in the HFSS design.
+    conductivity : float or None
+        The electrical conductivity (in S/m) to assign to the faces. 
+        If None, no boundary is assigned.
+    ingoing_face_id : int
+        The face ID corresponding to the ingoing face (to exclude from assignment).
+    outgoing_face_id : int
+        The face ID corresponding to the outgoing face (to exclude from assignment).
+    """
     if conductivity is None:
         pass
     else:
@@ -612,8 +629,6 @@ def run_analysis(num_cores, max_delta_E, max_passes, plane_wave_face, Ei, output
         None
 
     Notes:
-        - This function assumes global variables or modules such as `hfss`, `oModuleAnalysis`, `oModuleParametric`,
-          `project_name`, and `design_name` are defined elsewhere in the environment.
         - The “zoom” sweep option is currently a placeholder for future development.
     """
     
@@ -1184,7 +1199,6 @@ def extract_waveguide_data(frequency, Ei, plane_wave_face, i_theta_lower, i_thet
     Notes:
         - The function prints timing info for debugging and progress.
         - The waveguide exit field export method can be toggled by the 'manual_field' global flag.
-        - The output DataFrame columns are reordered to prioritize frequency, polarization, angles, and power info.
     """
     freq_str = f"{frequency}GHz"
     setup_name = get_setup_name(frequency) + ("_refine : LastAdaptive" if refine else " : LastAdaptive")
@@ -1360,7 +1374,6 @@ def extract_far_field_data(frequency, i_theta_lower, i_theta_upper, i_phi_lower,
         - The function internally launches a monitoring thread to track the export file creation and completion,
           ensuring that the file is fully written before reading.
         - Timing printouts are included to help with performance debugging.
-        - Output CSV files are organized into a subfolder named according to the project, design, frequency, and polarization.
     """
     freq_str = f"{frequency}GHz"
     setup_name = get_setup_name(frequency) + ("_refine : LastAdaptive" if refine else " : LastAdaptive")

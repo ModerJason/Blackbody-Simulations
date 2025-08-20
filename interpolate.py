@@ -117,6 +117,7 @@ for freq in frequencies:
         far_field_E_df = filter_by_variables(far_field_E_predictor_variables, far_field_E_response_variables,
                                                far_field_df)
         
+        # Dictionary of resolutions
         # resolutions = {
         #     "IWaveTheta": 0.1, # degrees
         #     "IWavePhi": 0.1, # degrees
@@ -161,6 +162,7 @@ for freq in frequencies:
         #     save_to_csv = False
         # )
         
+        # PLOT THE INTERPOLATED S21 GRID
         # plt.figure(figsize=(8,6))
         # plt.imshow(
         #     S21_grid, 
