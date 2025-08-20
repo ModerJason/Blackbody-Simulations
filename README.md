@@ -13,7 +13,7 @@ These gaps behave like semi-open parallel-plate waveguides that can support low-
 For a guide on usage, see [here](https://github.com/ModerJason/Blackbody-Simulations/blob/main/Blackbody%20Simulations%20Usage%20Guide.pdf).
 - Build or import a geometry in HFSS
 - Run bbsim.py
-- Post-process data
+- Post-process data: create outgoing power and electric field plots, interpolate across parameters, etc.
 
 These results will later integrate with Geant4 open-space photon simulations for an end-to-end model.
 
