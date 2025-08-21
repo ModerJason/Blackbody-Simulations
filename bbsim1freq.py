@@ -38,7 +38,7 @@ c = constants.c # Speed of light
 mu_0 = constants.mu_0 # permeability of free space
 
 project_name = "InfParallelPlate" # Name of the HFSS project
-design_name = "rectangular" # Name of the HFSS design
+design_name = "crack1again" # Name of the HFSS design
 repo_root = os.path.dirname(os.path.abspath(__file__))
 output_file_location = os.path.join(repo_root, "HFSSSimData") # The folder to output all data files
 os.makedirs(output_file_location, exist_ok=True)
@@ -110,8 +110,8 @@ oEditor = oDesign.SetActiveEditor("3D Modeler")
 # face with the same position in the copied design
 ingoing_face = hfss.modeler.get_face_by_id(ingoing_face_id)
 outgoing_face = hfss.modeler.get_face_by_id(outgoing_face_id)
-ingoing_face_center = ingoing_face.center
-outgoing_face_center = outgoing_face.center
+old_ingoing_center = ingoing_face.center
+old_outgoing_center = outgoing_face.center
 
 new_name = f"{design_name}_{frequency}GHz"
 refine_name = f"refined_{design_name}_{frequency}GHz"
@@ -143,10 +143,24 @@ else:
     oEditor = oDesign.SetActiveEditor("3D Modeler")
     oEditor.Paste()
     hfss = Hfss(project=project_name, design=refine_name, non_graphical=False)
-    
-# Hfss sometimes renames the face ids after copying the geometry into a new design, so get the new ids
-ingoing_face_id = hfss.modeler.get_faceid_from_position(ingoing_face_center)
-outgoing_face_id = hfss.modeler.get_faceid_from_position(outgoing_face_center)
+
+tol = 1e-6
+ingoing_face_id = None
+outgoing_face_id = None
+
+for obj in hfss.modeler.object_names:
+    for fid in hfss.modeler.get_object_faces(obj):
+        face = hfss.modeler.get_face_by_id(fid)
+        cx, cy, cz = face.center
+        # Compare ingoing
+        if all(abs(a - b) < tol for a, b in zip([cx, cy, cz], old_ingoing_center)):
+            ingoing_face_id = fid
+        # Compare outgoing
+        if all(abs(a - b) < tol for a, b in zip([cx, cy, cz], old_outgoing_center)):
+            outgoing_face_id = fid
+
+if ingoing_face_id is None or outgoing_face_id is None:
+    raise RuntimeError("Could not find ingoing or outgoing face in new copied design")
 
 oEditor.SetModelUnits(
     [
