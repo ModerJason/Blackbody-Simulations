@@ -38,8 +38,7 @@ c = constants.c # Speed of light
 mu_0 = constants.mu_0 # permeability of free space
 
 project_name = "InfParallelPlate" # Name of the HFSS project
-design_name = "retesting" # Name of the HFSS design
-feature_name = "waveguide" # Name of the crack/feature/waveguide
+design_name = "rectangular" # Name of the HFSS design
 repo_root = os.path.dirname(os.path.abspath(__file__))
 output_file_location = os.path.join(repo_root, "HFSSSimData") # The folder to output all data files
 os.makedirs(output_file_location, exist_ok=True)
@@ -55,7 +54,6 @@ num_cores = 4
 
 ingoing_face_id = 8 # Check face id's of the plane wave ingoing face and outgoing face by clicking select object/by name
 outgoing_face_id = 7
-conductivity = None # Default to infinite, otherwise specify in [S/m], e.g. 5000000000
 
 # Define x and y directions of outgoing coordinate systems (vectors relative to global coordinate system)
 # x direction points outward from face. The z direction is automatic from the right-hand rule.
@@ -75,10 +73,10 @@ outgoing_face_boundary = None # Or specify ([x1, y1, z1], [x2, y2, z2]), e.g.([0
 outgoing_face_field_resolution = ["0mm", "0.1mm", "0.001mm"] # Resolution in outputting the electric field at the outgoing face
 
 # The following 4 variables refer to sweeps over incident plane wave. These angles are with respect to the global
-# coordinate system. Symmetry can be used to make these sweeps less wide
+# coordinate system shfited to the face. Symmetry can be used to make these sweeps less wide
 i_theta_lower, i_theta_upper, i_phi_lower, i_phi_upper = 90, 180, 0, 90
-i_theta_step = 15 # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
-i_phi_step = 15
+i_theta_step = 90 # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
+i_phi_step = 90
 
 a = 10 # length scale of the dimension coinciding with the sweep over phi [mm]
 b = 0.05 # length scale of the dimension coinciding with the sweep over theta [mm]
@@ -118,24 +116,28 @@ outgoing_face_center = outgoing_face.center
 new_name = f"{design_name}_{frequency}GHz"
 refine_name = f"refined_{design_name}_{frequency}GHz"
 
+objects = hfss.modeler.object_names
+selection_string = ",".join(objects)
+print(f"Objects found: {objects}")
+
 # Create a copy of the geometry in a new design, labeling it appropriately
 if not import_from_existing_csv:
-    oEditor.Copy(
-    	[
-    		"NAME:Selections",
-    		"Selections:="		, feature_name
-    	])
+    selection_string = ",".join(objects)
+    oEditor.Copy([
+        "NAME:Selections",
+        "Selections:=", selection_string
+    ])
     oProject.InsertDesign("HFSS", new_name, "HFSS Terminal Network", "")
     oDesign = oProject.SetActiveDesign(new_name)
     oEditor = oDesign.SetActiveEditor("3D Modeler")
     oEditor.Paste()
     hfss = Hfss(project=project_name, design=new_name, non_graphical=False)
 else:    
-    oEditor.Copy(
-    	[
-    		"NAME:Selections",
-    		"Selections:="		, feature_name
-    	])
+    selection_string = ",".join(objects)
+    oEditor.Copy([
+        "NAME:Selections",
+        "Selections:=", selection_string
+    ])
     oProject.InsertDesign("HFSS", refine_name, "HFSS Terminal Network", "")
     oDesign = oProject.SetActiveDesign(refine_name)
     oEditor = oDesign.SetActiveEditor("3D Modeler")
@@ -209,49 +211,6 @@ def get_faces_from_face_id(ingoing_face_id, outgoing_face_id):
     hfss.assign_radiation_boundary_to_faces(assignment=[outgoing_face.id], name="rbout")
     
     return plane_wave_face, outgoing_face
-
-def set_conductivity(feature_name, conductivity, ingoing_face_id, outgoing_face_id):
-    """
-    Assign a finite conductivity boundary condition to all faces of a given geometry 
-    feature in HFSS, excluding the specified ingoing and outgoing faces.
-
-    Parameters
-    ----------
-    feature_name : str
-        The name of the 3D object/feature in the HFSS design.
-    conductivity : float or None
-        The electrical conductivity (in S/m) to assign to the faces. 
-        If None, no boundary is assigned.
-    ingoing_face_id : int
-        The face ID corresponding to the ingoing face (to exclude from assignment).
-    outgoing_face_id : int
-        The face ID corresponding to the outgoing face (to exclude from assignment).
-    """
-    if conductivity is None:
-        pass
-    else:
-        # Get all faces of the feature
-        face_ids = list(map(int, oEditor.GetFaceIDs(feature_name)))
-        
-        # Remove the ingoing and outgoing faces
-        remaining_face_ids = [fid for fid in face_ids if fid not in [ingoing_face_id, outgoing_face_id]]
-        
-        # Apply conductivity to the remaining faces
-        if remaining_face_ids:
-            oModuleBoundary.AssignFiniteCond(
-                [
-                    "NAME:FiniteCond1",
-                    "Faces:=", remaining_face_ids,
-                    "UseMaterial:=", False,
-                    "Conductivity:=", str(conductivity),
-                    "Permeability:=", "1",
-                    "UseThickness:=", False,
-                    "Roughness:=", "0um",
-                    "InfGroundPlane:=", False,
-                    "IsTwoSided:=", False,
-                    "IsInternal:=", True
-                ]
-            )
 
 def create_local_coordinate_system(outgoing_face, outgoing_face_cs_x, outgoing_face_cs_y):
     """
@@ -1622,7 +1581,6 @@ def main():
     # Simulation begins here
     initialize_variables(Ei)
     plane_wave_face, outgoing_face = get_faces_from_face_id(ingoing_face_id, outgoing_face_id)
-    set_conductivity(feature_name, conductivity, ingoing_face_id, outgoing_face_id)
     create_local_coordinate_system(outgoing_face, outgoing_face_cs_x, outgoing_face_cs_y)
     add_outgoing_power_to_calculator()
 
