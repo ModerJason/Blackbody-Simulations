@@ -38,14 +38,14 @@ c = constants.c # Speed of light
 mu_0 = constants.mu_0 # permeability of free space
 
 project_name = "InfParallelPlate" # Name of the HFSS project
-design_name = "crack1again" # Name of the HFSS design
+design_name = "adaptive_plot_6" # Name of the HFSS design
 repo_root = os.path.dirname(os.path.abspath(__file__))
 output_file_location = os.path.join(repo_root, "HFSSSimData") # The folder to output all data files
 os.makedirs(output_file_location, exist_ok=True)
 
 import_from_existing_csv = False # Whether to import waveguide and far_field_data from existing CSV (default is false)
-waveguide_data_csv = os.path.join(output_file_location, "InfParallelPlate_retesting_500GHz_Ephi=0/waveguide.csv")
-far_field_data_csv = os.path.join(output_file_location, "InfParallelPlate_retesting_500GHz_Ephi=0/far_field.csv")
+waveguide_data_csv = os.path.join(output_file_location, "InfParallelPlate_adaptive_plot_500GHz_Ephi=1/waveguide.csv")
+far_field_data_csv = os.path.join(output_file_location, "InfParallelPlate_adaptive_plot_500GHz_Ephi=1/far_field.csv")
 
 Ei = 1 # strength of incident electric field [V/m]
 max_delta_E = 0.02 # HFSS analysis sweep parameter
@@ -75,8 +75,8 @@ outgoing_face_field_resolution = ["0mm", "0.1mm", "0.001mm"] # Resolution in out
 # The following 4 variables refer to sweeps over incident plane wave. These angles are with respect to the global
 # coordinate system shfited to the face. Symmetry can be used to make these sweeps less wide
 i_theta_lower, i_theta_upper, i_phi_lower, i_phi_upper = 90, 180, 0, 90
-i_theta_step = 90 # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
-i_phi_step = 90
+i_theta_step = 15 # Initial step size over theta and phi (adaptive), or step size over theta and phi (discrete)
+i_phi_step = 15
 
 a = 10 # length scale of the dimension coinciding with the sweep over phi [mm]
 b = 0.05 # length scale of the dimension coinciding with the sweep over theta [mm]
@@ -93,7 +93,7 @@ rad_params = rad_theta_lower, rad_theta_upper, rad_phi_lower, rad_phi_upper, a, 
 
 # Adaptive or discrete sweep. For adaptive sweep, max difference is maximum fractional difference allowed between
 # any two points in the sweep, relative to the total maximum value of the outgoing power.
-sweep = "discrete"
+sweep = "adaptive"
 max_difference = 0.25
 
 #%%
