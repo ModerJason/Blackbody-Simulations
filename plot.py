@@ -23,25 +23,51 @@ def load_and_pivot(csv_path):
 
 def plot_outgoing_power_heatmap(pivot_table, title, cmap="viridis"):
     """
-    Plot a heatmap of the outgoing power from a pivot table of waveguide data.
-
-    Parameters:
-        pivot_table (pandas.DataFrame): Pivot table with outgoing power values,
-                                        indexed by incident theta angles (rows) and
-                                        incident phi angles (columns).
-        title (str): Title of the plot.
-        cmap (str, optional): Colormap to use for the heatmap. Defaults to "viridis".
-
-    Returns:
-        None. Displays a heatmap plot.
+    Plot heatmap with centered ticks every 15 degrees and larger fonts.
     """
     plt.figure(figsize=(8, 6))
-    sns.heatmap(pivot_table, annot=False, fmt=".2e", cmap=cmap, cbar_kws={"label": r"$P_{out}$ (W)"})
-    plt.title(title)
-    plt.xlabel(r"$\phi_{in}$ (degrees)")
-    plt.ylabel(r"$\theta_{in}$ (degrees)")
-    plt.tight_layout()
 
+    ax = sns.heatmap(
+        pivot_table,
+        annot=False,
+        fmt=".2e",
+        cmap=cmap,
+        cbar_kws={"label": r"$P_{out}$ (W)"}
+    )
+
+    theta_vals = pivot_table.index.astype(float).to_numpy()
+    phi_vals   = pivot_table.columns.astype(float).to_numpy()
+
+    # uniform 15° ticks
+    theta_ticks = np.arange(np.floor(theta_vals.min()/15)*15,
+                            np.ceil(theta_vals.max()/15)*15 + 1, 15)
+    phi_ticks   = np.arange(np.floor(phi_vals.min()/15)*15,
+                            np.ceil(phi_vals.max()/15)*15 + 1, 15)
+
+    theta_tick_positions = np.interp(theta_ticks, theta_vals, np.arange(len(theta_vals)))
+    phi_tick_positions   = np.interp(phi_ticks, phi_vals, np.arange(len(phi_vals)))
+
+    # center ticks
+    ax.set_yticks(theta_tick_positions + 0.5)
+    ax.set_xticks(phi_tick_positions + 0.5)
+
+    ax.set_yticklabels(theta_ticks)
+    ax.set_xticklabels(phi_ticks)
+
+    ax.tick_params(axis='x', labelsize=15)
+    ax.tick_params(axis='y', labelsize=15)
+
+    ax.set_title(title, fontsize=18)
+    ax.set_xlabel(r"$\phi_{in}$ (degrees)", fontsize=16)
+    ax.set_ylabel(r"$\theta_{in}$ (degrees)", fontsize=16)
+
+    cbar = ax.collections[0].colorbar
+    cbar.ax.tick_params(labelsize=15)
+    cbar.set_label(r"$P_{out}$ (W)", fontsize=16)
+    cbar.ax.yaxis.get_offset_text().set_fontsize(16)
+
+    plt.tight_layout()
+    
 def plot_outgoing_power_by_incoming_angle(csv_path, fixed_param, fixed_values):
     """
     Plot outgoing power as a function of one incoming angle (theta_in or phi_in)
@@ -130,27 +156,19 @@ def plot_exit_field_by_incoming_angle(csv_path, theta_in, phi_in,
     plt.colorbar(sc, label=r"$|E|$ (V/m)")
     plt.tight_layout()
 
-def plot_far_field_by_incoming_angle_fixed(csv_path,
-                                    theta_in_list,
-                                    phi_in_list,
-                                    fixed_param,
-                                    fixed_value,
-                                    title_prefix="Far-field E-Field Magnitude"):
+def plot_far_field_by_incoming_angle_fixed(
+    csv_path,
+    theta_in_list,
+    phi_in_list,
+    fixed_param,
+    fixed_value,
+    title_prefix="Far-field E-Field Magnitude"
+):
     """
-    Plot 1D slices of far-field electric field magnitude at a fixed outgoing angle (θ_out or φ_out),
-    varying the other outgoing angle, for given lists of incoming angles θ_in and φ_in.
-
-    Parameters:
-        csv_path (str): Path to the CSV file containing far field data.
-        theta_in_list (float or list of floats): Incoming polar angles θ_in in degrees.
-        phi_in_list (float or list of floats): Incoming azimuthal angles φ_in in degrees.
-        fixed_param (str): Fixed outgoing angle parameter, either r"$\theta_{out}$" or r"$\phi_{out}$".
-        fixed_value (float): The fixed value of the outgoing angle in degrees.
-        title_prefix (str, optional): Title prefix for the plot. Default is "Far-field E-Field Magnitude".
-
-    Returns:
-        None. Displays a 1D plot of |E| vs varying outgoing angle.
+    Plot 1D slices of far-field electric field magnitude at a fixed outgoing angle,
+    with improved font sizing and tick spacing every 15 degrees.
     """
+
     param_map = {
         r"$\theta_{out}$": "Theta",
         r"$\phi_{out}$": "Phi"
@@ -163,6 +181,7 @@ def plot_far_field_by_incoming_angle_fixed(csv_path,
     xlabel_units = r"$\phi_{out}$ (degrees)" if fixed_col == "Theta" else r"$\theta_{out}$ (degrees)"
 
     df = pd.read_csv(csv_path)
+
     if not isinstance(theta_in_list, (list, tuple)):
         theta_in_list = [theta_in_list]
     if not isinstance(phi_in_list, (list, tuple)):
@@ -170,28 +189,47 @@ def plot_far_field_by_incoming_angle_fixed(csv_path,
 
     rounded_fixed_value = round(fixed_value)
     plt.figure(figsize=(10, 7))
+
     for theta_in in theta_in_list:
         for phi_in in phi_in_list:
-            df_filt = df[(df["IWaveTheta"] == theta_in) & 
-                         (df["IWavePhi"] == phi_in) & 
-                         (np.isclose(df[fixed_col], fixed_value))]
+
+            df_filt = df[
+                (df["IWaveTheta"] == theta_in) &
+                (df["IWavePhi"] == phi_in) &
+                (np.isclose(df[fixed_col], fixed_value))
+            ]
             if df_filt.empty:
                 continue
 
-            # Compute total E-field magnitude
+            # E field magnitude
             Ephi_mag = np.sqrt(df_filt["rEphi_real"]**2 + df_filt["rEphi_imag"]**2)
             Etheta_mag = np.sqrt(df_filt["rEtheta_real"]**2 + df_filt["rEtheta_imag"]**2)
             Etot = np.sqrt(Ephi_mag**2 + Etheta_mag**2)
 
-            label = (fr"{fixed_param} = {rounded_fixed_value}°, "
-                     fr"$\theta_{{in}}$ = {theta_in}°, "
-                     fr"$\phi_{{in}}$ = {phi_in}°")
+            label = (
+                fr"{fixed_param} = {rounded_fixed_value}°, "
+                fr"$\theta_{{in}}$ = {theta_in}°, "
+                fr"$\phi_{{in}}$ = {phi_in}°"
+            )
+
             plt.plot(df_filt[varying_col], Etot, label=label)
 
-    plt.xlabel(xlabel_units)
-    plt.ylabel(r"$|E|$ (V/m)")
-    plt.title(f"{title_prefix} at {fixed_param} = {rounded_fixed_value}°")
-    plt.legend(fontsize='small', loc='best')
+    plt.xlabel(xlabel_units, fontsize=16)
+    plt.ylabel(r"$|E|$ (V/m)", fontsize=16)
+    plt.title(f"{title_prefix} at {fixed_param} = {rounded_fixed_value}°", fontsize=18)
+
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
+
+
+    var_vals = df[varying_col].unique().astype(float)
+    tick_min = np.floor(var_vals.min() / 15) * 15
+    tick_max = np.ceil(var_vals.max() / 15) * 15
+    ticks = np.arange(tick_min, tick_max + 1, 15)
+    plt.xticks(ticks)
+
+    plt.legend(fontsize=12, loc='best')
+
     plt.grid(True)
     plt.tight_layout()
 
@@ -256,8 +294,8 @@ def plot_far_field_by_incoming_angle(csv_path,
 
     plt.tight_layout()
 #%%
-waveguide_data = "C:/Users/Jason Wang/spyder/projects/Blackbody/Blackbody-Simulations/HFSSSimData/InfParallelPlate_adaptive_plot_5_500GHz_Ephi=1/refined_waveguide.csv"
-far_field_data = "C:/Users/Jason Wang/spyder/projects/Blackbody/Blackbody-Simulations/HFSSSimData/InfParallelPlate_adaptive_plot_5_500GHz_Ephi=1/refined_far_field.csv"
+waveguide_data = "C:/Users/Jason Wang/spyder/projects/Blackbody/Blackbody-Simulations/HFSSSimData/InfParallelPlate_bbsim13_500GHz_Ephi=0/waveguide.csv"
+far_field_data = "C:/Users/Jason Wang/spyder/projects/Blackbody/Blackbody-Simulations/HFSSSimData/InfParallelPlate_bbsim13_500GHz_Ephi=0/far_field.csv"
 #%%
 pivot = load_and_pivot(waveguide_data)
 
@@ -271,8 +309,8 @@ plot_exit_field_by_incoming_angle(csv_path=waveguide_data, theta_in =180, phi_in
 #%%
 plot_far_field_by_incoming_angle_fixed(
     csv_path=far_field_data,
-    theta_in_list=[180, 165],
-    phi_in_list=[0, 15],
+    theta_in_list=[180],
+    phi_in_list=[0],
     fixed_param=r"$\theta_{out}$",
     fixed_value=90
 )
